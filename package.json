@@ -1,0 +1,12 @@
+{
+  "name": "otp-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "telegraf": "^4.12.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
+
