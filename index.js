@@ -23,11 +23,11 @@ function sendDashboard(ctx) {
     const uid = ctx.from.id;
     if (userBalances[uid] === undefined) userBalances[uid] = 0.00;
 
-    ctx.reply(`Welcome! 🤖 @${ctx.from.username || "User"}\n\nআপনার একাউন্ট ড্যাশবোর্ড:\n💰 Balance: ${userBalances[uid].toFixed(4)} $`,
+    ctx.reply(`Welcome! 👏 @${ctx.from.username || "User"}\n\nClick the Get Number button to receive your number!`,
         Markup.inlineKeyboard([
             [Markup.button.callback("📱 Get Number", "platform_menu"), Markup.button.callback("💰 Balance", "show_balance")],
-            [Markup.button.callback("📉 Active Number", "active_num"), Markup.button.callback("💸 Withdraw", "withdraw_money")],
-            [Markup.button.url("📢 Bot Update Channel", "https://t.me/your_channel")]
+            [Markup.button.callback("📊 Active Number", "active_num"), Markup.button.callback("💸 Withdraw", "withdraw_money")],
+            [Markup.button.url("🤖 Bot Update Channel", "https://t.me/your_channel")]
         ])
     );
 }
@@ -59,11 +59,11 @@ bot.action('active_num', (ctx) => {
     if (myActive.length === 0) {
         ctx.answerCbQuery("আপনার বর্তমানে কোনো একটিভ নাম্বার নেই।", { show_alert: true });
     } else {
-        ctx.reply("📉 আপনার বর্তমান একটিভ নাম্বারগুলো:\n\n" + myActive.join('\n'));
+        ctx.reply("📊 আপনার বর্তমান একটিভ নাম্বারগুলো:\n\n" + myActive.join('\n'));
     }
 });
 
-// --- Admin Commands & User Actions (Previous Logic) ---
+// --- Admin Commands ---
 bot.command('bulk', (ctx) => {
     if (ctx.from.id !== ADMIN_ID) return;
     const lines = ctx.message.text.split('\n');
@@ -76,6 +76,7 @@ bot.command('bulk', (ctx) => {
     ctx.reply(`✅ Added ${nums.length} numbers for ${service} (${country}).`);
 });
 
+// --- User Navigation ---
 bot.action('platform_menu', async (ctx) => {
     try { await ctx.deleteMessage(); } catch (e) {}
     let buttons = myServices.map(s => [Markup.button.callback(s, `srv_${s}`)]);
@@ -114,7 +115,7 @@ bot.action('back_to_start', (ctx) => {
     sendDashboard(ctx);
 });
 
-// --- OTP Forwarding & 24/7 Server Logic (Keep as is) ---
+// --- OTP Forwarding Logic ---
 bot.on('message', (ctx) => {
     if (ctx.chat.id == OTP_GROUP_ID) {
         const messageText = ctx.message.text || ctx.message.caption;
@@ -128,8 +129,9 @@ bot.on('message', (ctx) => {
     }
 });
 
+// --- 24/7 Keep Alive Server ---
 const http = require('http');
 http.createServer((req, res) => { res.write("Bot is running!"); res.end(); }).listen(process.env.PORT || 3000);
 
 bot.launch();
-        
+console.log("🚀 Bot is live with all buttons working!");
