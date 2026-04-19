@@ -112,11 +112,16 @@ bot.on('message', (ctx) => {
     }
 });
 
-// --- Server ---
+// --- Essential Render Server & Port Binding ---
+const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
     res.write("Bot is running!");
     res.end();
-}).listen(process.env.PORT || 3000);
+}).listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is listening on port ${PORT}`);
+});
 
-bot.launch();
-console.log("🚀 Bot Started!");
+bot.launch().then(() => {
+    console.log("🚀 Bot Started Successfully!");
+});
