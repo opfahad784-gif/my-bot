@@ -112,6 +112,18 @@ bot.action('active_num', async (ctx) => {
 });
 
 bot.action('back_to_start', (ctx) => { try { ctx.deleteMessage(); } catch (e) {} sendDashboard(ctx); });
+const http = require('http');
+http.createServer((req, res) => {
+    res.write("Bot is running 24/7!");
+    res.end();
+}).listen(process.env.PORT || 3000);
+
+bot.on('text', (ctx, next) => {
+    if (ctx.message.text === "/") {
+        return ctx.reply("Bot is Alive!");
+    }
+    return next();
+});
 
 bot.launch();
 console.log("🚀 Bot is running!");
