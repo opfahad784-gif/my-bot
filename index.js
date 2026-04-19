@@ -2,10 +2,9 @@ const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
 // --- Configuration ---
-// আপনার নতুন দেওয়া টোকেনটি এখানে বসানো হয়েছে
 const TOKEN = '8749050433:AAFaZx9Sd1ZAke9MWjxHYoVrnoo8BKzS27c';
 const bot = new Telegraf(TOKEN);
-const ADMIN_ID = 7488161246;
+const ADMIN_ID = 7488161246; // Apnar Admin ID
 const OTP_GROUP_ID = -1003958220896;
 
 // --- Data Storage ---
@@ -13,60 +12,82 @@ let userBalances = {};
 let activeNumbers = {};
 let allNumbers = [];
 let myServices = ["Face-Book"];
+let serviceRates = { "Face-Book": 0.0030 }; // Default Rate
 let otpGroupLink = "https://t.me/yoosms_otp";
+let supportLink = "https://t.me/your_support"; // Support Link
 
 const countryInfo = {
     "Guinea": "Guinea 🇬🇳",
-    "Peru": "Peru 🇵🇪",
+    "Peru": "Peru 🇪🇵",
     "Bangladesh": "Bangladesh 🇧🇩"
 };
 
-// --- Dashboard Function ---
+// --- Dashboard Function (Original UI Preserved) ---
 function sendDashboard(ctx) {
     const uid = ctx.from.id;
-    if (userBalances[uid] === undefined) userBalances[uid] = 0.00;
+    if (userBalances[uid] === undefined) userBalances[uid] = 0.00; // New user balance 0
 
-    return ctx.reply(`Welcome! 👏 @${ctx.from.username || "User"}\n\nClick the Get Number button to receive your number!`,
+    return ctx.reply(`Welcome! 🤖 @${ctx.from.username || "User"}\n\nClick the Get Number button to receive your number!`,
         Markup.inlineKeyboard([
             [Markup.button.callback("📱 Get Number", "platform_menu"), Markup.button.callback("💰 Balance", "show_balance")],
-            [Markup.button.callback("📊 Active Number", "active_num"), Markup.button.callback("💸 Withdraw", "withdraw_money")],
-            [Markup.button.url("🤖 Bot Update Channel", "https://t.me/your_channel")]
+            [Markup.button.callback("📉 Active Number", "active_num"), Markup.button.callback("💸 Withdraw", "withdraw_money")],
+            [Markup.button.url("📢 Bot Update Channel", "https://t.me/your_channel")],
+            [Markup.button.url("🎧 Support", supportLink)]
         ])
     );
 }
 
-// --- Bot Core Logic ---
 bot.start((ctx) => sendDashboard(ctx));
 
+// --- Admin Panel (New Features) ---
+
+// 1. Multi-Number & Rate Setting: /add Service,Country,Price
+// Example: /add Face-Book,Bangladesh,0.0050
+// Tarpor niche shob number gulo ekbare diben
+bot.command('add', (ctx) => {
+    if (ctx.from.id !== ADMIN_ID) return;
+    const lines = ctx.message.text.split('\n');
+    const config = lines[0].replace('/add ', '').split(',');
+    if (config.length < 3) return ctx.reply("❌ Format: /add Service,Country,Price\nThen paste numbers in new lines.");
+
+    const [service, country, price] = config.map(s => s.trim());
+    const nums = lines.slice(1).map(n => n.trim()).filter(n => n.length > 5);
+    
+    serviceRates[service] = parseFloat(price);
+    nums.forEach(num => allNumbers.push({ service, country, phone: num }));
+    
+    if (!myServices.includes(service)) myServices.push(service);
+    ctx.reply(`✅ Added ${nums.length} numbers for ${service} (${country}) at $${price}`);
+});
+
+// 2. Broadcast: /broadcast Hello Everyone
+bot.command('broadcast', (ctx) => {
+    if (ctx.from.id !== ADMIN_ID) return;
+    const msg = ctx.message.text.replace('/broadcast ', '');
+    Object.keys(userBalances).forEach(uid => {
+        bot.telegram.sendMessage(uid, `📢 **IMPORTANT ANNOUNCEMENT**\n\n${msg}`, { parse_mode: 'Markdown' }).catch(e => {});
+    });
+    ctx.reply("✅ Broadcast sent to all users.");
+});
+
+// 3. Set OTP Group: /setgroup https://t.me/...
+bot.command('setgroup', (ctx) => {
+    if (ctx.from.id !== ADMIN_ID) return;
+    otpGroupLink = ctx.message.text.replace('/setgroup ', '').trim();
+    ctx.reply("✅ OTP Group link updated.");
+});
+
+// --- User Actions ---
 bot.action('show_balance', (ctx) => {
-    const uid = ctx.from.id;
-    const bal = userBalances[uid] || 0.00;
-    return ctx.answerCbQuery(`Balance: ${bal.toFixed(4)} $`, { show_alert: true });
-});
-
-bot.action('withdraw_money', (ctx) => {
-    return ctx.reply("❌ উইথড্র করার জন্য আপনার ব্যালেন্সে অন্তত ৫$ থাকতে হবে।");
-});
-
-bot.action('active_num', (ctx) => {
-    const uid = ctx.from.id;
-    let myActive = [];
-    for (const phone in activeNumbers) {
-        if (activeNumbers[phone].userId === uid) {
-            myActive.push(`📱 ${activeNumbers[phone].service}: ${phone}`);
-        }
-    }
-    if (myActive.length === 0) {
-        return ctx.answerCbQuery("No active numbers.", { show_alert: true });
-    }
-    return ctx.reply("📊 Your Active Numbers:\n\n" + myActive.join('\n'));
+    const bal = userBalances[ctx.from.id] || 0.00;
+    ctx.answerCbQuery(`Balance: ${bal.toFixed(4)} $`, { show_alert: true });
 });
 
 bot.action('platform_menu', async (ctx) => {
     try { await ctx.deleteMessage(); } catch (e) {}
-    let buttons = myServices.map(s => [Markup.button.callback(s, `srv_${s}`)]);
+    let buttons = myServices.map(s => [Markup.button.callback(`${s} ($${serviceRates[s] || 0})`, `srv_${s}`)]);
     buttons.push([Markup.button.callback("🔙 Back", "back_to_start")]);
-    return ctx.reply("📂 Select Platform:", Markup.inlineKeyboard(buttons));
+    ctx.reply("📂 Select Platform:", Markup.inlineKeyboard(buttons));
 });
 
 bot.action(/^srv_(.+)$/, async (ctx) => {
@@ -76,20 +97,30 @@ bot.action(/^srv_(.+)$/, async (ctx) => {
     if (countries.length === 0) return ctx.reply("❌ No numbers!", Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "platform_menu")]]));
     let buttons = countries.map(c => [Markup.button.callback(countryInfo[c] || c, `get_${service}_${c}`)]);
     buttons.push([Markup.button.callback("🔙 Back", "platform_menu")]);
-    return ctx.reply(`🌍 Select country for ${service}:`, Markup.inlineKeyboard(buttons));
+    ctx.reply(`🌍 Select country for ${service}:`, Markup.inlineKeyboard(buttons));
 });
 
 bot.action(/^get_(.+)_(.+)$/, async (ctx) => {
     const service = ctx.match[1];
     const country = ctx.match[2];
+    const uid = ctx.from.id;
+    const price = serviceRates[service] || 0;
+
+    if ((userBalances[uid] || 0) < price) {
+        return ctx.answerCbQuery("❌ Insufficient Balance!", { show_alert: true });
+    }
+
     let idx = allNumbers.findIndex(n => n.service === service && n.country === country);
-    if (idx === -1) return ctx.answerCbQuery("❌ Empty!");
+    if (idx === -1) return ctx.answerCbQuery("❌ Out of stock!");
+
+    userBalances[uid] -= price; // Balance deduct
     let selected = allNumbers.splice(idx, 1)[0];
-    activeNumbers[selected.phone] = { userId: ctx.from.id, service: service };
+    activeNumbers[selected.phone] = { userId: uid, service: service };
+
     try { await ctx.deleteMessage(); } catch (e) {}
-    return ctx.reply(`✅ Number Assigned!\n\n📱 ${service} | ${selected.phone} | ${country}\n\n⏳ OTP-র জন্য গ্রুপ চেক করুন।`,
+    ctx.reply(`✅ Number Assigned!\n\n📱 ${service} | ${selected.phone} | ${country}\n💰 Price: $${price}\n\n⏳ OTP-র জন্য গ্রুপ চেক করুন।`,
         Markup.inlineKeyboard([
-            [Markup.button.callback("🗑 Delete Number", "back_to_start"), Markup.button.callback("🔙 Menu", "back_to_start")],
+            [Markup.button.callback("🗑 Delete", "back_to_start"), Markup.button.callback("🔙 Menu", "back_to_start")],
             [Markup.button.url("📑 OTP GROUP", otpGroupLink)]
         ])
     );
@@ -97,43 +128,27 @@ bot.action(/^get_(.+)_(.+)$/, async (ctx) => {
 
 bot.action('back_to_start', (ctx) => {
     try { ctx.deleteMessage(); } catch (e) {}
-    return sendDashboard(ctx);
+    sendDashboard(ctx);
 });
 
-// --- OTP Forwarding Logic ---
+// --- OTP Forwarding ---
 bot.on('message', (ctx) => {
     if (ctx.chat && ctx.chat.id == OTP_GROUP_ID) {
         const messageText = ctx.message.text || ctx.message.caption;
         if (!messageText) return;
-
         for (const phone in activeNumbers) {
             if (messageText.includes(phone)) {
-                const targetUser = activeNumbers[phone].userId;
-                bot.telegram.sendMessage(targetUser, `📩 **নতুন OTP এসেছে!**\n\n**Number:** ${phone}\n\n**Message:**\n${messageText}`, { parse_mode: 'Markdown' });
+                bot.telegram.sendMessage(activeNumbers[phone].userId, `📩 **New OTP Received!**\n\n**Number:** ${phone}\n\n**Message:**\n${messageText}`, { parse_mode: 'Markdown' });
             }
         }
     }
 });
 
-// --- Essential Web Server for Render ---
+// --- Server ---
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.write("Bot is running!");
-    res.end();
-}).listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on ${PORT}`);
-});
+    res.writeHead(200);
+    res.end('Active');
+}).listen(PORT, '0.0.0.0');
 
-// --- Final Launch with Update Dropping ---
-bot.launch({
-    dropPendingUpdates: true 
-}).then(() => {
-    console.log("🚀 Bot is launched and ready with new token!");
-}).catch((err) => {
-    console.error("❌ Failed to launch bot:", err);
-});
-
-// Graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+bot.launch({ dropPendingUpdates: true }).then(() => console.log("🚀 Bot is live with Admin Features!"));
