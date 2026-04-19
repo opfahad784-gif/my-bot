@@ -2,23 +2,31 @@ const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
 // --- Configuration ---
-const TOKEN = '8749050433:AAFuzv0SdTZAku9WHjxHYvUynoo8BKzS27c';
+// আপনার নতুন দেওয়া টোকেনটি এখানে বসানো হয়েছে
+const TOKEN = '8749050433:AAFaZx9Sd1ZAke9MWjxHYoVrnoo8BKzS27c';
 const bot = new Telegraf(TOKEN);
 const ADMIN_ID = 7488161246;
 const OTP_GROUP_ID = -1003958220896;
 
-// --- Data ---
+// --- Data Storage ---
 let userBalances = {};
 let activeNumbers = {};
 let allNumbers = [];
 let myServices = ["Face-Book"];
 let otpGroupLink = "https://t.me/yoosms_otp";
 
-// --- Functions ---
+const countryInfo = {
+    "Guinea": "Guinea 🇬🇳",
+    "Peru": "Peru 🇵🇪",
+    "Bangladesh": "Bangladesh 🇧🇩"
+};
+
+// --- Dashboard Function ---
 function sendDashboard(ctx) {
     const uid = ctx.from.id;
     if (userBalances[uid] === undefined) userBalances[uid] = 0.00;
-    return ctx.reply(`Welcome! 👏 @${ctx.from.username || "User"}\n\nClick buttons below:`,
+
+    return ctx.reply(`Welcome! 👏 @${ctx.from.username || "User"}\n\nClick the Get Number button to receive your number!`,
         Markup.inlineKeyboard([
             [Markup.button.callback("📱 Get Number", "platform_menu"), Markup.button.callback("💰 Balance", "show_balance")],
             [Markup.button.callback("📊 Active Number", "active_num"), Markup.button.callback("💸 Withdraw", "withdraw_money")],
@@ -27,27 +35,64 @@ function sendDashboard(ctx) {
     );
 }
 
-// --- Commands & Actions ---
+// --- Bot Core Logic ---
 bot.start((ctx) => sendDashboard(ctx));
 
 bot.action('show_balance', (ctx) => {
-    const bal = userBalances[ctx.from.id] || 0.00;
+    const uid = ctx.from.id;
+    const bal = userBalances[uid] || 0.00;
     return ctx.answerCbQuery(`Balance: ${bal.toFixed(4)} $`, { show_alert: true });
 });
 
-bot.action('withdraw_money', (ctx) => ctx.reply("❌ Minimum 5$ required."));
+bot.action('withdraw_money', (ctx) => {
+    return ctx.reply("❌ উইথড্র করার জন্য আপনার ব্যালেন্সে অন্তত ৫$ থাকতে হবে।");
+});
 
 bot.action('active_num', (ctx) => {
-    let myActive = Object.keys(activeNumbers).filter(p => activeNumbers[p].userId === ctx.from.id);
-    if (myActive.length === 0) return ctx.answerCbQuery("No active numbers.", { show_alert: true });
-    return ctx.reply("📊 Active:\n" + myActive.join('\n'));
+    const uid = ctx.from.id;
+    let myActive = [];
+    for (const phone in activeNumbers) {
+        if (activeNumbers[phone].userId === uid) {
+            myActive.push(`📱 ${activeNumbers[phone].service}: ${phone}`);
+        }
+    }
+    if (myActive.length === 0) {
+        return ctx.answerCbQuery("No active numbers.", { show_alert: true });
+    }
+    return ctx.reply("📊 Your Active Numbers:\n\n" + myActive.join('\n'));
 });
 
 bot.action('platform_menu', async (ctx) => {
     try { await ctx.deleteMessage(); } catch (e) {}
     let buttons = myServices.map(s => [Markup.button.callback(s, `srv_${s}`)]);
     buttons.push([Markup.button.callback("🔙 Back", "back_to_start")]);
-    return ctx.reply("📂 Platforms:", Markup.inlineKeyboard(buttons));
+    return ctx.reply("📂 Select Platform:", Markup.inlineKeyboard(buttons));
+});
+
+bot.action(/^srv_(.+)$/, async (ctx) => {
+    const service = ctx.match[1];
+    try { await ctx.deleteMessage(); } catch (e) {}
+    let countries = [...new Set(allNumbers.filter(n => n.service === service).map(n => n.country))];
+    if (countries.length === 0) return ctx.reply("❌ No numbers!", Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "platform_menu")]]));
+    let buttons = countries.map(c => [Markup.button.callback(countryInfo[c] || c, `get_${service}_${c}`)]);
+    buttons.push([Markup.button.callback("🔙 Back", "platform_menu")]);
+    return ctx.reply(`🌍 Select country for ${service}:`, Markup.inlineKeyboard(buttons));
+});
+
+bot.action(/^get_(.+)_(.+)$/, async (ctx) => {
+    const service = ctx.match[1];
+    const country = ctx.match[2];
+    let idx = allNumbers.findIndex(n => n.service === service && n.country === country);
+    if (idx === -1) return ctx.answerCbQuery("❌ Empty!");
+    let selected = allNumbers.splice(idx, 1)[0];
+    activeNumbers[selected.phone] = { userId: ctx.from.id, service: service };
+    try { await ctx.deleteMessage(); } catch (e) {}
+    return ctx.reply(`✅ Number Assigned!\n\n📱 ${service} | ${selected.phone} | ${country}\n\n⏳ OTP-র জন্য গ্রুপ চেক করুন।`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback("🗑 Delete Number", "back_to_start"), Markup.button.callback("🔙 Menu", "back_to_start")],
+            [Markup.button.url("📑 OTP GROUP", otpGroupLink)]
+        ])
+    );
 });
 
 bot.action('back_to_start', (ctx) => {
@@ -55,34 +100,40 @@ bot.action('back_to_start', (ctx) => {
     return sendDashboard(ctx);
 });
 
-// --- Forwarding ---
+// --- OTP Forwarding Logic ---
 bot.on('message', (ctx) => {
-    if (ctx.chat.id == OTP_GROUP_ID) {
-        const text = ctx.message.text || ctx.message.caption;
-        if (!text) return;
+    if (ctx.chat && ctx.chat.id == OTP_GROUP_ID) {
+        const messageText = ctx.message.text || ctx.message.caption;
+        if (!messageText) return;
+
         for (const phone in activeNumbers) {
-            if (text.includes(phone)) {
-                bot.telegram.sendMessage(activeNumbers[phone].userId, `📩 **New OTP:**\n\n${text}`, { parse_mode: 'Markdown' });
+            if (messageText.includes(phone)) {
+                const targetUser = activeNumbers[phone].userId;
+                bot.telegram.sendMessage(targetUser, `📩 **নতুন OTP এসেছে!**\n\n**Number:** ${phone}\n\n**Message:**\n${messageText}`, { parse_mode: 'Markdown' });
             }
         }
     }
 });
 
-// --- Web Server for Render (Must listen on 0.0.0.0) ---
+// --- Essential Web Server for Render ---
 const PORT = process.env.PORT || 3000;
-const server = http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Bot is live!');
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.write("Bot is running!");
+    res.end();
+}).listen(PORT, '0.0.0.0', () => {
+    console.log(`Server listening on ${PORT}`);
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    bot.launch()
-        .then(() => console.log('🚀 Bot started'))
-        .catch(err => console.error('Bot launch error:', err));
+// --- Final Launch with Update Dropping ---
+bot.launch({
+    dropPendingUpdates: true 
+}).then(() => {
+    console.log("🚀 Bot is launched and ready with new token!");
+}).catch((err) => {
+    console.error("❌ Failed to launch bot:", err);
 });
 
 // Graceful stop
-process.once('SIGINT', () => { bot.stop('SIGINT'); server.close(); });
-process.once('SIGTERM', () => { bot.stop('SIGTERM'); server.close(); });
-                    
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
