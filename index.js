@@ -1,20 +1,20 @@
 const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
-// --- ⚙️ কনফিগারেশন ---
-const TOKEN = '7822711517:AAEzqcB7q5BWmfXIurhTPpDsQua7LKJAnbU'; // আপনার নতুন টোকেন
+// --- ⚙️ configuration ---
+const TOKEN = '7822711517:AAEzqcB7q5BWmfXIurhTPpDsQua7LKJAnbU'; 
 const ADMIN_ID = 7488161246; 
 const OTP_GROUP_ID = -1003958220896; 
 
 const bot = new Telegraf(TOKEN);
 
-// --- 🗄️ ডাটাবেস ---
+// --- 🗄️ database ---
 let userBalances = {}; 
 let activeNumbers = {}; 
 let inventory = []; 
 let services = { "Face-Book": 0.0030 };
 
-// --- 🎨 মেইন মেনু UI ---
+// --- 🎨 UI Helper Functions ---
 function getMainMenu(ctx) {
     const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
     return {
@@ -28,23 +28,46 @@ function getMainMenu(ctx) {
     };
 }
 
-// --- 🚀 স্টার্ট কমান্ড (সরাসরি মেনু আসবে) ---
+// --- 🚀 start command ---
 bot.start((ctx) => {
     if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
     const menu = getMainMenu(ctx);
     ctx.reply(menu.text, menu.markup);
 });
 
-// --- 🔘 বাটন হ্যান্ডলার ---
+// --- 🔘 button handler ---
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
+    const uid = ctx.from.id;
 
     if (data === "home") {
         const menu = getMainMenu(ctx);
         return ctx.editMessageText(menu.text, menu.markup);
     }
     
-    if (data === "menu_get_number") {
+    // --- 💰 Balance UI ---
+    if (data === "menu_balance") {
+        let bal = userBalances[uid] || 0.00;
+        await ctx.editMessageText(
+            `💰 **Your Current Balance**\n\n💵 Amount: **$${bal.toFixed(4)} USDT**\n🆔 User ID: \`${uid}\``,
+            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) }
+        );
+    }
+
+    // --- 📊 Active Number UI ---
+    else if (data === "menu_active") {
+        let myNumbers = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
+        if (myNumbers.length === 0) {
+            return ctx.editMessageText("❌ You have no active numbers right now.", Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]));
+        }
+        let list = myNumbers.map(p => `📱 \`${p}\` (${activeNumbers[p].service})`).join('\n');
+        await ctx.editMessageText(
+            `📊 **Your Active Numbers**\n\n${list}\n\nWaiting for OTP...`,
+            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) }
+        );
+    }
+
+    else if (data === "menu_get_number") {
         let buttons = Object.keys(services).map(srv => [Markup.button.callback(srv, `srv_${srv}`)]);
         buttons.push([Markup.button.callback("🏠 Main Menu", "home")]);
         await ctx.editMessageText("🛠 Select the platform:", Markup.inlineKeyboard(buttons));
@@ -65,36 +88,23 @@ bot.on('callback_query', async (ctx) => {
         if (idx === -1) return ctx.answerCbQuery("❌ Out of stock!", { show_alert: true });
 
         let item = inventory.splice(idx, 1)[0];
-        activeNumbers[item.phone] = { uid: ctx.from.id, service: srv, country: cty, rate: services[srv] };
+        activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
-        const msg = await ctx.editMessageText(`✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⏳ Wait, Stay here... OTP Coming Soon!`, {
-            parse_mode: 'Markdown',
-            ...Markup.inlineKeyboard([
-                [Markup.button.callback("🗑 Delete Number (10s)", "timer_info")],
-                [Markup.button.callback("📱 OTP GROUP (Status: Joined)", "timer_info")]
-            ])
-        });
-
-        let sec = 10;
-        const t = setInterval(async () => {
-            sec--;
-            if (sec <= 0) {
-                clearInterval(t);
-                delete activeNumbers[item.phone];
-                try { await ctx.deleteMessage(msg.message_id); } catch(e){}
-            } else {
-                try {
-                    await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
-                        [Markup.button.callback(`🗑 Delete Number (${sec}s)`, "timer_info")],
-                        [Markup.button.callback("📱 OTP GROUP (Status: Joined)", "timer_info")]
-                    ]).reply_markup);
-                } catch(e){}
+        // আপনার চাওয়া UI: ১টি নাম্বার, Change বাটন, কোন টাইমার নেই
+        await ctx.editMessageText(
+            `🇲🇬 ${cty} (${srv})\n\n💰 Price: $${services[srv]} USDT\n\nSelect a number to copy:\n\n📋 \`${item.phone}\``, 
+            {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback("🔄 Change", "menu_get_number"), Markup.button.callback("OTP", "timer_info")],
+                    [Markup.button.callback("🔙 Back", "home")]
+                ])
             }
-        }, 1000);
+        );
     }
 });
 
-// --- 📡 কমান্ড ও ওটিপি প্রসেসিং ---
+// --- 📡 text processor (Admin Bulk & OTP) ---
 bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
@@ -124,4 +134,3 @@ bot.on('text', async (ctx) => {
 
 http.createServer((req, res) => { res.writeHead(200); res.end('Running'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
-                                                                   
