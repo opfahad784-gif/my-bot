@@ -45,20 +45,50 @@ bot.on('callback_query', async (ctx) => {
         return ctx.editMessageText(menu.text, menu.markup);
     }
     
-    // --- 💰 Balance UI ---
+    // --- 💰 Balance UI (Fixed) ---
     if (data === "menu_balance") {
         let bal = userBalances[uid] || 0.00;
         await ctx.editMessageText(
-            `💰 **Your Current Balance**\n\n💵 Amount: **$${bal.toFixed(4)} USDT**\n🆔 User ID: \`${uid}\``,
-            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) }
+            `💰 **Your Balance:** $${bal.toFixed(4)}\n\n💡 **Earning Rates:**\n• Face-Book: $0.0030\n\n💳 **Minimum Withdrawal:** $1.0000`,
+            { 
+                parse_mode: 'Markdown', 
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback("💸 Transfer Balance", "menu_withdraw")],
+                    [Markup.button.callback("🔙 Back to Menu", "home")]
+                ]) 
+            }
         );
     }
 
-    // --- 📊 Active Number UI ---
+    // --- 💸 Withdraw/Transfer UI (Fixed) ---
+    else if (data === "menu_withdraw") {
+        let bal = userBalances[uid] || 0.00;
+        if (bal < 0.50) {
+            await ctx.editMessageText(
+                `❌ **Insufficient Balance**\n\n💰 **Your Balance:** $${bal.toFixed(4)}\n💵 **Minimum Required:** $0.50\n\n💡 You need at least $0.50 to transfer.`,
+                { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) }
+            );
+        } else {
+            await ctx.editMessageText(
+                `📅 **Withdrawal Not Available Today**\n\n🗓 **Today:** Monday\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/A_ToolsX)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm\n⏰ **Next withdrawal day:** Tuesday`,
+                { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back to Menu", "home")]]) }
+            );
+        }
+    }
+
+    // --- 📊 Active Number UI (Fixed) ---
     else if (data === "menu_active") {
         let myNumbers = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
         if (myNumbers.length === 0) {
-            return ctx.editMessageText("❌ You have no active numbers right now.", Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]));
+            return ctx.editMessageText(
+                `📊 **No Active Numbers**\n\n💡 You don't have any active numbers. Get a number to start earning!\n\n🔄 Numbers stay active until you delete them!`,
+                { 
+                    parse_mode: 'Markdown', 
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]
+                    ]) 
+                }
+            );
         }
         let list = myNumbers.map(p => `📱 \`${p}\` (${activeNumbers[p].service})`).join('\n');
         await ctx.editMessageText(
@@ -90,7 +120,6 @@ bot.on('callback_query', async (ctx) => {
         let item = inventory.splice(idx, 1)[0];
         activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
-        // আপনার চাওয়া UI: ১টি নাম্বার, Change বাটন, কোন টাইমার নেই
         await ctx.editMessageText(
             `🇲🇬 ${cty} (${srv})\n\n💰 Price: $${services[srv]} USDT\n\nSelect a number to copy:\n\n📋 \`${item.phone}\``, 
             {
@@ -104,7 +133,7 @@ bot.on('callback_query', async (ctx) => {
     }
 });
 
-// --- 📡 text processor (Admin Bulk & OTP) ---
+// --- 📡 text processor ---
 bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
@@ -134,3 +163,4 @@ bot.on('text', async (ctx) => {
 
 http.createServer((req, res) => { res.writeHead(200); res.end('Running'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
+            
