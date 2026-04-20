@@ -2,7 +2,7 @@ const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
 // --- ⚙️ কনফিগারেশন ---
-const TOKEN = '7822711517:AAEpeFSU1XcKIo-uE194SXH9UVJn0kL0e_o'; 
+const TOKEN = '7822711517:AAEzqcB7q5BWmfXIurhTPpDsQua7LKJAnbU'; // আপনার নতুন টোকেন
 const ADMIN_ID = 7488161246; 
 const OTP_GROUP_ID = -1003958220896; 
 
@@ -28,7 +28,7 @@ function getMainMenu(ctx) {
     };
 }
 
-// --- 🚀 স্টার্ট কমান্ড (কোনো মেম্বারশিপ চেক নেই) ---
+// --- 🚀 স্টার্ট কমান্ড (সরাসরি মেনু আসবে) ---
 bot.start((ctx) => {
     if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
     const menu = getMainMenu(ctx);
@@ -38,7 +38,6 @@ bot.start((ctx) => {
 // --- 🔘 বাটন হ্যান্ডলার ---
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
-    const uid = ctx.from.id;
 
     if (data === "home") {
         const menu = getMainMenu(ctx);
@@ -66,13 +65,13 @@ bot.on('callback_query', async (ctx) => {
         if (idx === -1) return ctx.answerCbQuery("❌ Out of stock!", { show_alert: true });
 
         let item = inventory.splice(idx, 1)[0];
-        activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
+        activeNumbers[item.phone] = { uid: ctx.from.id, service: srv, country: cty, rate: services[srv] };
         
         const msg = await ctx.editMessageText(`✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⏳ Wait, Stay here... OTP Coming Soon!`, {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
                 [Markup.button.callback("🗑 Delete Number (10s)", "timer_info")],
-                [Markup.button.callback("📱 OTP GROUP (Status: Active)", "timer_info")]
+                [Markup.button.callback("📱 OTP GROUP (Status: Joined)", "timer_info")]
             ])
         });
 
@@ -87,7 +86,7 @@ bot.on('callback_query', async (ctx) => {
                 try {
                     await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
                         [Markup.button.callback(`🗑 Delete Number (${sec}s)`, "timer_info")],
-                        [Markup.button.callback("📱 OTP GROUP (Status: Active)", "timer_info")]
+                        [Markup.button.callback("📱 OTP GROUP (Status: Joined)", "timer_info")]
                     ]).reply_markup);
                 } catch(e){}
             }
@@ -100,9 +99,29 @@ bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
 
-    // ১. অ্যাডমিন বাল্ক কমান্ড
     if (uid === ADMIN_ID && text.startsWith('/bulk')) {
         try {
             let lines = text.split('\n');
             let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
-            
+            let srv = info[0], cty = info[1];
+            let nums = lines.slice(1).filter(n => n.length > 5);
+            nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n }));
+            return ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
+        } catch (e) { return ctx.reply("Format error!"); }
+    }
+
+    if (ctx.chat.id == OTP_GROUP_ID) {
+        for (let phone in activeNumbers) {
+            if (text.includes(phone)) {
+                let d = activeNumbers[phone];
+                bot.telegram.sendMessage(d.uid, `📩 **OTP Received!**\n\nNumber: ${phone}\nCode: ${text}`);
+                userBalances[d.uid] = (userBalances[d.uid] || 0) + d.rate;
+                delete activeNumbers[phone];
+            }
+        }
+    }
+});
+
+http.createServer((req, res) => { res.writeHead(200); res.end('Running'); }).listen(process.env.PORT || 3000);
+bot.launch({ dropPendingUpdates: true });
+                                                                   
