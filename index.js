@@ -28,7 +28,7 @@ function getMainMenu(ctx) {
     };
 }
 
-// --- 🚀 স্টার্ট কমান্ড (সরাসরি মেনু আসবে) ---
+// --- 🚀 স্টার্ট কমান্ড (কোনো মেম্বারশিপ চেক নেই) ---
 bot.start((ctx) => {
     if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
     const menu = getMainMenu(ctx);
@@ -72,7 +72,7 @@ bot.on('callback_query', async (ctx) => {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
                 [Markup.button.callback("🗑 Delete Number (10s)", "timer_info")],
-                [Markup.button.callback("📱 OTP GROUP (Joined)", "timer_info")]
+                [Markup.button.callback("📱 OTP GROUP (Status: Active)", "timer_info")]
             ])
         });
 
@@ -87,7 +87,7 @@ bot.on('callback_query', async (ctx) => {
                 try {
                     await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
                         [Markup.button.callback(`🗑 Delete Number (${sec}s)`, "timer_info")],
-                        [Markup.button.callback("📱 OTP GROUP (Joined)", "timer_info")]
+                        [Markup.button.callback("📱 OTP GROUP (Status: Active)", "timer_info")]
                     ]).reply_markup);
                 } catch(e){}
             }
@@ -100,31 +100,9 @@ bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
 
-    // ১. অ্যাডমিন বাল্ক কমান্ড (সরাসরি কাজ করবে)
+    // ১. অ্যাডমিন বাল্ক কমান্ড
     if (uid === ADMIN_ID && text.startsWith('/bulk')) {
         try {
             let lines = text.split('\n');
             let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
-            let srv = info[0], cty = info[1];
-            let nums = lines.slice(1).filter(n => n.length > 5);
-            nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n }));
-            return ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
-        } catch (e) { return ctx.reply("Format: /bulk Service, Country\nPhoneNumbers"); }
-    }
-
-    // ২. ওটিপি চেক (গ্রুপ আইডি দিয়ে)
-    if (ctx.chat.id == OTP_GROUP_ID) {
-        for (let phone in activeNumbers) {
-            if (text.includes(phone)) {
-                let d = activeNumbers[phone];
-                bot.telegram.sendMessage(d.uid, `📩 **OTP Received!**\n\nNumber: ${phone}\nCode: ${text}`);
-                userBalances[d.uid] = (userBalances[d.uid] || 0) + d.rate;
-                delete activeNumbers[phone];
-            }
-        }
-        return;
-    }
-});
-
-http.createServer((req, res) => { res.writeHead(200); res.end('Bot Running'); }).listen(process.env.PORT || 3000);
-bot.launch({ dropPendingUpdates: true });
+            
