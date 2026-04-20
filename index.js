@@ -42,7 +42,7 @@ bot.on('callback_query', async (ctx) => {
         return ctx.editMessageText(menu.text, menu.markup);
     }
     
-    // --- 💰 Balance UI (Same to Same) ---
+    // --- 💰 Balance UI ---
     if (data === "menu_balance") {
         let bal = userBalances[uid] || 0.00;
         await ctx.editMessageText(
@@ -56,7 +56,7 @@ bot.on('callback_query', async (ctx) => {
         );
     }
 
-    // --- 💸 Withdraw UI (Same to Same) ---
+    // --- 💸 Withdraw UI ---
     else if (data === "menu_withdraw") {
         let bal = userBalances[uid] || 0.00;
         if (bal < 0.50) {
@@ -72,7 +72,7 @@ bot.on('callback_query', async (ctx) => {
         }
     }
 
-    // --- 📊 Active Number UI (Same to Same) ---
+    // --- 📊 Active Number UI ---
     else if (data === "menu_active") {
         let myNumbers = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
         if (myNumbers.length === 0) {
@@ -85,7 +85,7 @@ bot.on('callback_query', async (ctx) => {
         await ctx.editMessageText(`📊 **Your Active Numbers**\n\n${list}\n\nWaiting for OTP...`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) });
     }
 
-    // --- 📱 Get Number UI (Same to Same) ---
+    // --- 📱 Get Number UI ---
     else if (data === "menu_get_number") {
         let buttons = Object.keys(services).map(srv => [Markup.button.callback(srv, `srv_${srv}`)]);
         buttons.push([Markup.button.callback("🏠 Main Menu", "home")]);
@@ -109,13 +109,21 @@ bot.on('callback_query', async (ctx) => {
         let item = inventory.splice(idx, 1)[0];
         activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
+        // --- ✅ নম্বর শো করার UI (Same to Same as your image) ---
         await ctx.editMessageText(
-            `🇲🇬 ${cty} (${srv})\n\n💰 Price: $${services[srv].toFixed(4)} USDT\n\nSelect a number to copy:\n\n📋 \`${item.phone}\``, 
-            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔄 Change", "menu_get_number"), Markup.button.callback("OTP", "timer_info")], [Markup.button.callback("🔙 Back", "home")]]) }
+            `✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⌛ **Wait, Stay here... OTP Coming Soon!**`, 
+            { 
+                parse_mode: 'Markdown', 
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback("🗑 Delete Number", "menu_get_number"), Markup.button.callback("🔙 Back to Menu", "home")],
+                    [Markup.button.url("📱 OTP GROUP HERE", "https://t.me/A_ToolsX")]
+                ]) 
+            }
         );
     }
 });
 
+// Admin ও OTP প্রসেসিং আগের মতোই আছে...
 bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
