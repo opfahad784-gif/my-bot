@@ -1,20 +1,18 @@
 const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
-// --- ⚙️ configuration ---
 const TOKEN = '7822711517:AAEzqcB7q5BWmfXIurhTPpDsQua7LKJAnbU'; 
 const ADMIN_ID = 7488161246; 
 const OTP_GROUP_ID = -1003958220896; 
 
 const bot = new Telegraf(TOKEN);
 
-// --- 🗄️ database ---
 let userBalances = {}; 
 let activeNumbers = {}; 
 let inventory = []; 
-let services = { "Face-Book": 0.0030 };
+let services = { "Face-Book": 0.0030 }; // Default service
+let allUsers = new Set(); // Broadcast এর জন্য ইউজার লিস্ট
 
-// --- 🎨 UI Helper Functions ---
 function getMainMenu(ctx) {
     const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
     return {
@@ -28,28 +26,25 @@ function getMainMenu(ctx) {
     };
 }
 
-// --- 🚀 start command ---
 bot.start((ctx) => {
+    allUsers.add(ctx.from.id);
     if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
     const menu = getMainMenu(ctx);
     ctx.reply(menu.text, menu.markup);
 });
 
-// --- 🔘 button handler ---
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
     const uid = ctx.from.id;
 
     if (data === "home") {
-        const menu = getMainMenu(ctx);
-        return ctx.editMessageText(menu.text, menu.markup);
+        return ctx.editMessageText(getMainMenu(ctx).text, getMainMenu(ctx).markup);
     }
     
-    // --- 💰 Balance UI (Fixed) ---
     if (data === "menu_balance") {
         let bal = userBalances[uid] || 0.00;
         await ctx.editMessageText(
-            `💰 **Your Balance:** $${bal.toFixed(4)}\n\n💡 **Earning Rates:**\n• Face-Book: $0.0030\n\n💳 **Minimum Withdrawal:** $1.0000`,
+            `💰 **Your Balance:** $${bal.toFixed(4)}\n\n💡 **Earning Rates:**\n${Object.entries(services).map(([s, r]) => `• ${s}: $${r.toFixed(4)}`).join('\n')}\n\n💳 **Minimum Withdrawal:** $1.0000`,
             { 
                 parse_mode: 'Markdown', 
                 ...Markup.inlineKeyboard([
@@ -60,7 +55,6 @@ bot.on('callback_query', async (ctx) => {
         );
     }
 
-    // --- 💸 Withdraw/Transfer UI (Fixed) ---
     else if (data === "menu_withdraw") {
         let bal = userBalances[uid] || 0.00;
         if (bal < 0.50) {
@@ -70,31 +64,22 @@ bot.on('callback_query', async (ctx) => {
             );
         } else {
             await ctx.editMessageText(
-                `📅 **Withdrawal Not Available Today**\n\n🗓 **Today:** Monday\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/A_ToolsX)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm\n⏰ **Next withdrawal day:** Tuesday`,
+                `📅 **Withdrawal Not Available Today**\n\n🗓 **Today:** Monday\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/A_ToolsX)\n\n⏰ **Next withdrawal day:** Tuesday`,
                 { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back to Menu", "home")]]) }
             );
         }
     }
 
-    // --- 📊 Active Number UI (Fixed) ---
     else if (data === "menu_active") {
         let myNumbers = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
         if (myNumbers.length === 0) {
             return ctx.editMessageText(
                 `📊 **No Active Numbers**\n\n💡 You don't have any active numbers. Get a number to start earning!\n\n🔄 Numbers stay active until you delete them!`,
-                { 
-                    parse_mode: 'Markdown', 
-                    ...Markup.inlineKeyboard([
-                        [Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]
-                    ]) 
-                }
+                { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]]) }
             );
         }
         let list = myNumbers.map(p => `📱 \`${p}\` (${activeNumbers[p].service})`).join('\n');
-        await ctx.editMessageText(
-            `📊 **Your Active Numbers**\n\n${list}\n\nWaiting for OTP...`,
-            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) }
-        );
+        await ctx.editMessageText(`📊 **Your Active Numbers**\n\n${list}\n\nWaiting for OTP...`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) });
     }
 
     else if (data === "menu_get_number") {
@@ -121,32 +106,52 @@ bot.on('callback_query', async (ctx) => {
         activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
         await ctx.editMessageText(
-            `🇲🇬 ${cty} (${srv})\n\n💰 Price: $${services[srv]} USDT\n\nSelect a number to copy:\n\n📋 \`${item.phone}\``, 
-            {
-                parse_mode: 'Markdown',
-                ...Markup.inlineKeyboard([
-                    [Markup.button.callback("🔄 Change", "menu_get_number"), Markup.button.callback("OTP", "timer_info")],
-                    [Markup.button.callback("🔙 Back", "home")]
-                ])
-            }
+            `🇲🇬 ${cty} (${srv})\n\n💰 Price: $${services[srv].toFixed(4)} USDT\n\nSelect a number to copy:\n\n📋 \`${item.phone}\``, 
+            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔄 Change", "menu_get_number"), Markup.button.callback("OTP", "timer_info")], [Markup.button.callback("🔙 Back", "home")]]) }
         );
     }
 });
 
-// --- 📡 text processor ---
 bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
 
-    if (uid === ADMIN_ID && text.startsWith('/bulk')) {
-        try {
-            let lines = text.split('\n');
-            let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
-            let srv = info[0], cty = info[1];
-            let nums = lines.slice(1).filter(n => n.length > 5);
-            nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n }));
-            return ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
-        } catch (e) { return ctx.reply("Format error!"); }
+    if (uid === ADMIN_ID) {
+        // ১. ব্রডকাস্ট কমান্ড
+        if (text.startsWith('/broadcast ')) {
+            let msg = text.replace('/broadcast ', '');
+            allUsers.forEach(user => bot.telegram.sendMessage(user, `📢 **Broadcast:**\n\n${msg}`).catch(e => {}));
+            return ctx.reply("✅ Broadcast sent to all users.");
+        }
+
+        // ২. নতুন সার্ভিস যোগ
+        if (text.startsWith('/addservice ')) {
+            let [name, rate] = text.replace('/addservice ', '').split(',').map(s => s.trim());
+            services[name] = parseFloat(rate);
+            return ctx.reply(`✅ Service ${name} added with rate $${rate}`);
+        }
+
+        // ৩. সার্ভিস এডিট
+        if (text.startsWith('/editservice ')) {
+            let [name, rate] = text.replace('/editservice ', '').split(',').map(s => s.trim());
+            if (services[name]) {
+                services[name] = parseFloat(rate);
+                return ctx.reply(`✅ Service ${name} updated to $${rate}`);
+            }
+            return ctx.reply("❌ Service not found!");
+        }
+
+        // ৪. বাল্ক নম্বর যোগ
+        if (text.startsWith('/bulk ')) {
+            try {
+                let lines = text.split('\n');
+                let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
+                let srv = info[0], cty = info[1];
+                let nums = lines.slice(1).filter(n => n.length > 5);
+                nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n.trim() }));
+                return ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
+            } catch (e) { return ctx.reply("Format: /bulk Service, Country\nNumber1\nNumber2"); }
+        }
     }
 
     if (ctx.chat.id == OTP_GROUP_ID) {
@@ -163,4 +168,4 @@ bot.on('text', async (ctx) => {
 
 http.createServer((req, res) => { res.writeHead(200); res.end('Running'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
-            
+                                                 
