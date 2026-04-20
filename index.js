@@ -3,7 +3,7 @@ const http = require('http');
 
 // --- ⚙️ কনফিগারেশন ---
 const TOKEN = '7822711517:AAEpeFSU1XcKIo-uE194SXH9UVJn0kL0e_o';
-const ADMIN_ID = 7488161246; 
+const ADMIN_ID = 7488161246; // আপনার আইডি
 const OTP_GROUP_ID = -1003958220896; 
 
 const bot = new Telegraf(TOKEN);
@@ -14,8 +14,8 @@ let activeNumbers = {};
 let inventory = []; 
 let settings = {
     otpLink: "https://t.me/yoosms_otp",
-    updateLink: "https://t.me/your_channel",
-    supportLink: "https://t.me/your_support",
+    updateLink: "https://t.me/A_ToolsX",
+    supportLink: "https://t.me/your_actual_support",
     minWithdraw: 1.0000
 };
 let services = { "Face-Book": 0.0030 };
@@ -53,7 +53,7 @@ bot.on('callback_query', async (ctx) => {
     if (data === "menu_get_number") {
         let buttons = Object.keys(services).map(srv => [Markup.button.callback(srv, `srv_${srv}`)]);
         buttons.push([Markup.button.callback("🏠 Main Menu", "home")]);
-        await ctx.editMessageText("🛠 Select the platform you need to access:", Markup.inlineKeyboard(buttons));
+        await ctx.editMessageText("🛠 Select the platform:", Markup.inlineKeyboard(buttons));
     }
 
     else if (data.startsWith("srv_")) {
@@ -73,7 +73,6 @@ bot.on('callback_query', async (ctx) => {
         let item = inventory.splice(idx, 1)[0];
         activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
-        // --- 🆕 নতুন UI ডিজাইন (আপনার বক্স স্টাইল অনুযায়ী) ---
         const messageText = `✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⏳ Wait, Stay here... OTP Coming Soon!`;
         
         const sentMsg = await ctx.editMessageText(messageText, {
@@ -84,7 +83,6 @@ bot.on('callback_query', async (ctx) => {
             ])
         });
 
-        // --- ⏲️ ১০ সেকেন্ড অটো-ডিলিট লজিক ---
         let timeLeft = 10;
         const timer = setInterval(async () => {
             timeLeft--;
@@ -105,39 +103,14 @@ bot.on('callback_query', async (ctx) => {
             }
         }, 1000);
     }
-    
-    else if (data === "timer_info") {
-        ctx.answerCbQuery("এটি ১০ সেকেন্ড পর অটোমেটিক ডিলিট হবে।", { show_alert: true });
-    }
-
-    else if (data === "menu_balance") {
-        let bal = (userBalances[uid] || 0).toFixed(4);
-        await ctx.editMessageText(`💰 Your Balance: $${bal}\n\n💡 Earning Rates:\n• Face-Book: $0.0030\n\n💳 Minimum Withdrawal: $${settings.minWithdraw.toFixed(4)}`, 
-            Markup.inlineKeyboard([[Markup.button.callback("💸 Transfer Balance", "err_bal"), Markup.button.callback("🔙 Back to Menu", "home")]]));
-    }
-
-    else if (data === "menu_active") {
-        let myNums = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
-        if (myNums.length === 0) {
-            await ctx.editMessageText(`📊 No Active Numbers\n\nYou don't have any active numbers.`, 
-                Markup.inlineKeyboard([[Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]]));
-        } else {
-            let text = "📊 Your Active Numbers:\n\n" + myNums.map(p => `📱 ${activeNumbers[p].service} | ${p}`).join('\n');
-            await ctx.editMessageText(text, Markup.inlineKeyboard([[Markup.button.callback("🏠 Main Menu", "home")]]));
-        }
-    }
-
-    else if (data === "menu_withdraw") {
-        await ctx.editMessageText(`📆 Withdrawal Not Available Today\n\n✅ Withdrawal Day: Tuesday (12:00 AM - 12:00 PM)`, 
-            Markup.inlineKeyboard([[Markup.button.callback("🔙 Back to Menu", "home")]]));
-    }
 });
 
-// --- 📡 OTP & ADMIN ---
-bot.on('text', (ctx) => {
+// --- 📡 OTP & ADMIN COMMANDS (Force Join ছাড়া) ---
+bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
 
+    // OTP ফরওয়ার্ডিং
     if (ctx.chat.id == OTP_GROUP_ID) {
         for (let phone in activeNumbers) {
             if (text.includes(phone)) {
@@ -150,21 +123,21 @@ bot.on('text', (ctx) => {
         return;
     }
 
-    if (uid !== ADMIN_ID) return;
-
-    if (text.startsWith('/bulk')) {
-        try {
-            let lines = text.split('\n');
-            let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
-            let srv = info[0];
-            let cty = info[1];
-            let nums = lines.slice(1).filter(n => n.length > 5);
-            nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n }));
-            ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
-        } catch (e) { ctx.reply("Format:\n/bulk Face-Book, Peru +51\n51925155896"); }
+    // অ্যাডমিন চেক (সরাসরি আপনার আইডি চেক করবে)
+    if (uid === ADMIN_ID) {
+        if (text.startsWith('/bulk')) {
+            try {
+                let lines = text.split('\n');
+                let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
+                let srv = info[0];
+                let cty = info[1];
+                let nums = lines.slice(1).filter(n => n.length > 5);
+                nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n }));
+                ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
+            } catch (e) { ctx.reply("Format: /bulk Face-Book, Peru +51\n51925155896"); }
+        }
     }
 });
 
 http.createServer((req, res) => { res.writeHead(200); res.end('OK'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
-    
