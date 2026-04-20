@@ -2,10 +2,9 @@ const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
 // --- ⚙️ কনফিগারেশন ---
-const TOKEN = '7822711517:AAEpeFSU1XcKIo-uE194SXH9UVJn0kL0e_o';
-const ADMIN_ID = 7488161246; // আপনার আইডি
+const TOKEN = '7822711517:AAEpeFSU1XcKIo-uE194SXH9UVJn0kL0e_o'; 
+const ADMIN_ID = 7488161246; 
 const OTP_GROUP_ID = -1003958220896; 
-const CHANNEL_USERNAME = '@A_ToolsX'; 
 
 const bot = new Telegraf(TOKEN);
 
@@ -15,7 +14,7 @@ let activeNumbers = {};
 let inventory = []; 
 let services = { "Face-Book": 0.0030 };
 
-// --- 🎨 UI ফাংশন ---
+// --- 🎨 মেইন মেনু UI ---
 function getMainMenu(ctx) {
     const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
     return {
@@ -29,40 +28,29 @@ function getMainMenu(ctx) {
     };
 }
 
-// --- 🛡️ মেম্বারশিপ চেক (অ্যাডমিন বাদে) ---
-async function isUserJoined(ctx) {
-    if (ctx.from.id === ADMIN_ID) return true; // অ্যাডমিনকে কোনো বাধা দিবে না
-    try {
-        const member = await ctx.telegram.getChatMember(CHANNEL_USERNAME, ctx.from.id);
-        const allowed = ['creator', 'administrator', 'member'];
-        return allowed.includes(member.status);
-    } catch (e) { return false; }
-}
-
-// --- 🚀 কমান্ড হ্যান্ডলার ---
-bot.start(async (ctx) => {
-    const joined = await isUserJoined(ctx);
-    if (!joined) {
-        return ctx.reply(`🚀 To use this bot, you must join our channel: https://t.me/A_ToolsX`);
-    }
+// --- 🚀 স্টার্ট কমান্ড (সরাসরি মেনু আসবে) ---
+bot.start((ctx) => {
+    if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
     const menu = getMainMenu(ctx);
     ctx.reply(menu.text, menu.markup);
 });
 
-// --- 🔘 বাটন লজিক ---
+// --- 🔘 বাটন হ্যান্ডলার ---
 bot.on('callback_query', async (ctx) => {
-    const joined = await isUserJoined(ctx);
-    if (!joined) return ctx.answerCbQuery("Please join our channel first!", { show_alert: true });
-
     const data = ctx.callbackQuery.data;
     const uid = ctx.from.id;
 
+    if (data === "home") {
+        const menu = getMainMenu(ctx);
+        return ctx.editMessageText(menu.text, menu.markup);
+    }
+    
     if (data === "menu_get_number") {
         let buttons = Object.keys(services).map(srv => [Markup.button.callback(srv, `srv_${srv}`)]);
         buttons.push([Markup.button.callback("🏠 Main Menu", "home")]);
         await ctx.editMessageText("🛠 Select the platform:", Markup.inlineKeyboard(buttons));
     }
-    
+
     else if (data.startsWith("srv_")) {
         const srv = data.split("_")[1];
         let countries = [...new Set(inventory.filter(i => i.service === srv).map(i => i.country))];
@@ -84,11 +72,10 @@ bot.on('callback_query', async (ctx) => {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
                 [Markup.button.callback("🗑 Delete Number (10s)", "timer_info")],
-                [Markup.button.url("📱 OTP GROUP HERE ↗️", "https://t.me/yoosms_otp")]
+                [Markup.button.callback("📱 OTP GROUP (Joined)", "timer_info")]
             ])
         });
 
-        // ১০ সেকেন্ড টাইমার
         let sec = 10;
         const t = setInterval(async () => {
             sec--;
@@ -100,25 +87,20 @@ bot.on('callback_query', async (ctx) => {
                 try {
                     await ctx.editMessageReplyMarkup(Markup.inlineKeyboard([
                         [Markup.button.callback(`🗑 Delete Number (${sec}s)`, "timer_info")],
-                        [Markup.button.url("📱 OTP GROUP HERE ↗️", "https://t.me/yoosms_otp")]
+                        [Markup.button.callback("📱 OTP GROUP (Joined)", "timer_info")]
                     ]).reply_markup);
                 } catch(e){}
             }
         }, 1000);
     }
-    
-    if (data === "home") {
-        const menu = getMainMenu(ctx);
-        ctx.editMessageText(menu.text, menu.markup);
-    }
 });
 
-// --- 📡 টেক্সট ও অ্যাডমিন কমান্ড ---
+// --- 📡 কমান্ড ও ওটিপি প্রসেসিং ---
 bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
 
-    // ১. অ্যাডমিন বাল্ক কমান্ড (সবার আগে)
+    // ১. অ্যাডমিন বাল্ক কমান্ড (সরাসরি কাজ করবে)
     if (uid === ADMIN_ID && text.startsWith('/bulk')) {
         try {
             let lines = text.split('\n');
@@ -127,10 +109,10 @@ bot.on('text', async (ctx) => {
             let nums = lines.slice(1).filter(n => n.length > 5);
             nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n }));
             return ctx.reply(`✅ Added ${nums.length} numbers for ${srv}.`);
-        } catch (e) { return ctx.reply("Format: /bulk Face-Book, Peru +51\n51925155896"); }
+        } catch (e) { return ctx.reply("Format: /bulk Service, Country\nPhoneNumbers"); }
     }
 
-    // ২. OTP চেক (গ্রুপ থেকে)
+    // ২. ওটিপি চেক (গ্রুপ আইডি দিয়ে)
     if (ctx.chat.id == OTP_GROUP_ID) {
         for (let phone in activeNumbers) {
             if (text.includes(phone)) {
@@ -142,12 +124,7 @@ bot.on('text', async (ctx) => {
         }
         return;
     }
-
-    // ৩. মেম্বারশিপ চেক (ইউজারদের জন্য)
-    const joined = await isUserJoined(ctx);
-    if (!joined) return ctx.reply(`🚀 Please join our channel first: https://t.me/A_ToolsX`);
 });
 
-http.createServer((req, res) => { res.writeHead(200); res.end('Alive'); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.writeHead(200); res.end('Bot Running'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
-                                   
