@@ -2,13 +2,13 @@ const { Telegraf, Markup } = require('telegraf');
 const http = require('http');
 
 // --- ⚙️ কনফিগারেশন ---
-const TOKEN = '7822711517:AAEpeFSU1XcKIo-uE194SXH9UVJn0kL0e_o'; // আপনার দেওয়া নতুন টোকেন
-const ADMIN_ID = 7488161246; // আপনার আইডি
+const TOKEN = '7822711517:AAEpeFSU1XcKIo-uE194SXH9UVJn0kL0e_o';
+const ADMIN_ID = 7488161246; 
 const OTP_GROUP_ID = -1003958220896; 
 
 const bot = new Telegraf(TOKEN);
 
-// --- 🗄️ ডাটাবেস (ইন-মেমোরি) ---
+// --- 🗄️ ডাটাবেস ---
 let userBalances = {}; 
 let activeNumbers = {}; 
 let inventory = []; 
@@ -20,7 +20,7 @@ let settings = {
 };
 let services = { "Face-Book": 0.0030 };
 
-// --- 🎨 মেইন মেনু UI (আপনার ডিজাইন অনুযায়ী) ---
+// --- 🎨 মেইন মেনু UI ---
 function getMainMenu(ctx) {
     const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
     return {
@@ -73,12 +73,41 @@ bot.on('callback_query', async (ctx) => {
         let item = inventory.splice(idx, 1)[0];
         activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
-        await ctx.editMessageText(`✅ Number Assigned!\n\n📱 ${srv} | ${item.phone} | ${cty}\n\n⏳ Wait, Stay here... OTP Coming Soon!`, 
-            Markup.inlineKeyboard([
-                [Markup.button.callback("🗑 Delete Number", `del_${item.phone}`)],
+        // --- 🆕 নতুন UI ডিজাইন (আপনার বক্স স্টাইল অনুযায়ী) ---
+        const messageText = `✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⏳ Wait, Stay here... OTP Coming Soon!`;
+        
+        const sentMsg = await ctx.editMessageText(messageText, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([
+                [Markup.button.callback("🗑 Delete Number (10s)", "timer_info")],
                 [Markup.button.url("📱 OTP GROUP HERE ↗️", settings.otpLink)]
             ])
-        );
+        });
+
+        // --- ⏲️ ১০ সেকেন্ড অটো-ডিলিট লজিক ---
+        let timeLeft = 10;
+        const timer = setInterval(async () => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                delete activeNumbers[item.phone];
+                try {
+                    await bot.telegram.deleteMessage(ctx.chat.id, sentMsg.message_id);
+                    ctx.reply("❌ Number expired and deleted automatically.");
+                } catch (e) {}
+            } else {
+                try {
+                    await bot.telegram.editMessageReplyMarkup(ctx.chat.id, sentMsg.message_id, undefined, Markup.inlineKeyboard([
+                        [Markup.button.callback(`🗑 Delete Number (${timeLeft}s)`, "timer_info")],
+                        [Markup.button.url("📱 OTP GROUP HERE ↗️", settings.otpLink)]
+                    ]).reply_markup);
+                } catch (e) {}
+            }
+        }, 1000);
+    }
+    
+    else if (data === "timer_info") {
+        ctx.answerCbQuery("এটি ১০ সেকেন্ড পর অটোমেটিক ডিলিট হবে।", { show_alert: true });
     }
 
     else if (data === "menu_balance") {
@@ -102,16 +131,9 @@ bot.on('callback_query', async (ctx) => {
         await ctx.editMessageText(`📆 Withdrawal Not Available Today\n\n✅ Withdrawal Day: Tuesday (12:00 AM - 12:00 PM)`, 
             Markup.inlineKeyboard([[Markup.button.callback("🔙 Back to Menu", "home")]]));
     }
-    
-    else if (data.startsWith("del_")) {
-        delete activeNumbers[data.replace("del_", "")];
-        ctx.answerCbQuery("✅ Deleted");
-        const menu = getMainMenu(ctx);
-        ctx.editMessageText(menu.text, menu.markup);
-    }
 });
 
-// --- 📡 OTP এবং অ্যাডমিন কমান্ড ---
+// --- 📡 OTP & ADMIN ---
 bot.on('text', (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
@@ -145,3 +167,4 @@ bot.on('text', (ctx) => {
 
 http.createServer((req, res) => { res.writeHead(200); res.end('OK'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
+    
