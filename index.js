@@ -84,6 +84,21 @@ bot.on('callback_query', (query) => {
             }
         });
     }
+    else if (data === "menu_active") {
+        const active = assignedNumbers.find(n => n.userId === userId);
+        if (!active) {
+            return bot.answerCallbackQuery(query.id, { text: "You have no active numbers!", show_alert: true });
+        }
+        bot.editMessageText(`📱 *Active Number Details*\n\n🔹 Platform: ${active.service}\n🔹 Country: ${active.country}\n🔹 Number: \`${active.number}\`\n\n⏳ Waiting for OTP...`, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🗑 Delete Number", callback_data: `del_${active.number}` }],
+                    [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
+                ]
+            }
+        });
+    }
     else if (data === "main_menu") {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
@@ -97,12 +112,12 @@ bot.on('callback_query', (query) => {
     }
     else if (data === "menu_withdraw") {
         const user = users[userId] || { balance: 0 };
-        bot.editMessageText(`💸 *Withdrawal Menu*\n\n💰 Your Balance: $${user.balance.toFixed(4)}\n\n⚠️ Minimum withdraw is $1.0000.\n\nClick the button below to send request to admin.`, {
+        bot.editMessageText(`💸 *Withdrawal Menu*\n\n💰 Your Balance: $${user.balance.toFixed(4)}\n\n⚠️ Minimum withdraw is $1.0000.\n\nClick below to request.`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "📤 Send Withdraw Request", callback_data: "request_withdraw" }],
-                    [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                    [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
                 ]
             }
         });
@@ -158,14 +173,11 @@ bot.on('message', (msg) => {
             const lines = text.split('\n');
             const header = lines[0].replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country\nNumbers...");
-
             const sName = header[0].trim();
             const cName = header[1].trim();
-
             if (!services[sName]) services[sName] = { countries: [], rates: {} };
             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
             if (!services[sName].rates[cName]) services[sName].rates[cName] = 0.003;
-
             let count = 0;
             for (let i = 1; i < lines.length; i++) {
                 if (lines[i].trim()) {
@@ -173,7 +185,7 @@ bot.on('message', (msg) => {
                     count++;
                 }
             }
-            bot.sendMessage(chatId, `✅ Successfully added ${count} numbers to ${sName} (${cName}).`);
+            bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
         }
         else if (text.startsWith('/edit balance')) {
             const parts = text.split(' ');
@@ -219,4 +231,4 @@ bot.on('message', (msg) => {
         }
     }
 });
-                    
+        
