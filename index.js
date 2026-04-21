@@ -19,7 +19,7 @@ let services = {};
 let availableNumbers = []; 
 let assignedNumbers = []; 
 let config = {
-    otpGroup: "https://t.me/",
+    otpGroup: "https://t.me/", // Default link
     updateGroup: "https://t.me/SureSmsOfficial"
 };
 
@@ -89,7 +89,13 @@ bot.on('callback_query', (query) => {
         if (!active) return bot.answerCallbackQuery(query.id, { text: "You have no active numbers!", show_alert: true });
         bot.editMessageText(`📱 *Active Number Details*\n\n🔹 Platform: ${active.service}\n🔹 Country: ${active.country}\n🔹 Number: \`${active.number}\`\n\n⏳ Waiting for OTP...`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${active.number}` }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🗑 Delete Number", callback_data: `del_${active.number}` }],
+                    [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }],
+                    [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
+                ]
+            }
         });
     }
     else if (data === "main_menu") {
@@ -155,7 +161,16 @@ bot.on('message', (msg) => {
     }
 
     if (chatId === ADMIN_ID) {
-        if (text.startsWith('/addservice')) {
+        if (text.startsWith('/setotpgroup')) {
+            const link = text.split(' ')[1];
+            if (link && link.startsWith('http')) {
+                config.otpGroup = link;
+                bot.sendMessage(chatId, `✅ OTP Group link updated to: ${link}`);
+            } else {
+                bot.sendMessage(chatId, "⚠️ Invalid link! Usage: /setotpgroup https://t.me/yourgroup");
+            }
+        }
+        else if (text.startsWith('/addservice')) {
             const sName = text.replace('/addservice', '').trim();
             if (sName) {
                 if (!services[sName]) {
@@ -217,4 +232,4 @@ bot.on('message', (msg) => {
         }
     }
 });
-                                              
+       
