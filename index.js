@@ -1,149 +1,250 @@
-const { Telegraf, Markup } = require('telegraf');
-const http = require('http');
+const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
 
-const TOKEN = '7822711517:AAEzqcB7q5BWmfXIurhTPpDsQua7LKJAnbU'; 
-const ADMIN_ID = 7488161246; 
-const OTP_GROUP_ID = -1003958220896; 
+// --- RENDER PORT SETUP ---
+const app = express();
+app.get('/', (req, res) => res.send('Bot is running!'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-const bot = new Telegraf(TOKEN);
+// --- BOT CONFIGURATION ---
+const TOKEN = '8413633586:AAG6-j20MwwfcYNpxqHAxeLGYqRNxylsz4E';
+const ADMIN_ID = 7488161246;
+const GROUP_ID = -1003958220896;
 
-let userBalances = {}; 
-let activeNumbers = {}; 
-let inventory = []; 
-let services = { "Face-Book": 0.0030 }; 
-let allUsers = new Set(); 
-let otpGroupLink = ""; // এটি খালি রাখা হয়েছে, আপনি কমান্ড দিয়ে আপনার নিজের গ্রুপের লিংক বসাবেন
+const bot = new TelegramBot(TOKEN, { polling: true });
 
-function getMainMenu(ctx) {
-    const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
-    return {
-        text: `Welcome! 👋 ${username}\n\nClick the Get Number button to receive your number!`,
-        markup: Markup.inlineKeyboard([
-            [Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("💰 Balance", "menu_balance")],
-            [Markup.button.callback("📊 Active Number", "menu_active"), Markup.button.callback("💸 Withdraw", "menu_withdraw")],
-            [Markup.button.url("🤖 Bot Update Channel ↗️", "#")], // আপনার নিজের আপডেট চ্যানেলের লিংক এখানে দেবেন
-            [Markup.button.url("🎧 Support", "#")] // আপনার নিজের সাপোর্ট লিংক এখানে দেবেন
-        ])
+// --- IN-MEMORY DATABASE ---
+let users = {}; 
+let services = {}; // Format: { "Face-Book": { countries: ["Peru", "Myanmar"], rates: { "Peru": 0.03 } } }
+let availableNumbers = []; // Format: { service, country, number }
+let assignedNumbers = []; // Format: { service, country, number, userId, assignedAt }
+let config = {
+    otpGroup: "https://t.me/your_otp_group",
+    updateGroup: "https://t.me/your_update_group"
+};
+
+// --- HELPER FUNCTIONS ---
+const getUser = (id) => {
+    if (!users[id]) users[id] = { balance: 0, activeNumbers: [] };
+    return users[id];
+};
+
+const sendMainMenu = (chatId, username) => {
+    const text = `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`;
+    const options = {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📱 Get Number", callback_data: "menu_get_number" }, { text: "💰 Balance", callback_data: "menu_balance" }],
+                [{ text: "📱 Active Number", callback_data: "menu_active" }, { text: "💸 Withdraw", callback_data: "menu_withdraw" }],
+                [{ text: "🤖 Bot Update Channel", url: config.updateGroup }]
+            ]
+        }
     };
-}
+    bot.sendMessage(chatId, text, options);
+};
 
-// কোনো Force Join সিস্টেম নেই
-bot.start((ctx) => {
-    allUsers.add(ctx.from.id);
-    if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
-    const menu = getMainMenu(ctx);
-    ctx.reply(menu.text, menu.markup);
+// --- USER COMMANDS & CALLBACKS ---
+bot.onText(/\/start/, (msg) => {
+    getUser(msg.from.id); // Initialize user
+    sendMainMenu(msg.chat.id, msg.from.username);
 });
 
-bot.on('callback_query', async (ctx) => {
-    const data = ctx.callbackQuery.data;
-    const uid = ctx.from.id;
+bot.on('callback_query', (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
+    const userId = query.from.id;
+    const user = getUser(userId);
 
-    if (data === "home") return ctx.editMessageText(getMainMenu(ctx).text, getMainMenu(ctx).markup);
-    
-    // --- 💰 Balance UI ---
-    if (data === "menu_balance") {
-        let bal = userBalances[uid] || 0.00;
-        await ctx.editMessageText(
-            `💰 **Your Balance: $${bal.toFixed(4)}**\n\n💡 **Earning Rates:**\n• Face-Book: $0.0030\n\n💳 **Minimum Withdrawal: $1.0000**`,
-            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("💸 Transfer Balance", "menu_withdraw"), Markup.button.callback("🔙 Back to Menu", "home")]]) }
-        );
-    }
-
-    // --- 📊 Active Number UI ---
-    else if (data === "menu_active") {
-        let myNumbers = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
-        if (myNumbers.length === 0) {
-            return ctx.editMessageText(`📊 **No Active Numbers**\n\n💡 You don't have any active numbers.\nGet a number to start earning!\n\n🔄 **Numbers stay active until you delete them!**`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]]) });
+    if (data === "menu_get_number") {
+        let buttons = Object.keys(services).map(s => [{ text: s, callback_data: `service_${s}` }]);
+        buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }, { text: "🔙 Back", callback_data: "main_menu" }]);
+        bot.editMessageText("🛠 Select the platform you need to access:", {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            reply_markup: { inline_keyboard: buttons }
+        });
+    } 
+    else if (data.startsWith("service_")) {
+        const serviceName = data.split("_")[1];
+        if (!services[serviceName] || services[serviceName].countries.length === 0) {
+            return bot.answerCallbackQuery(query.id, { text: "No countries available for this service.", show_alert: true });
         }
-        let list = myNumbers.map(p => `📱 \`${p}\` (${activeNumbers[p].service})`).join('\n');
-        await ctx.editMessageText(`📊 **Your Active Numbers**\n\n${list}\n\nWaiting for OTP...`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) });
+        let buttons = services[serviceName].countries.map(c => [{ text: `${c}`, callback_data: `country_${serviceName}_${c}` }]);
+        buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }, { text: "🔙 Back", callback_data: "menu_get_number" }]);
+        bot.editMessageText(`🌍 Select country for ${serviceName}:`, {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            reply_markup: { inline_keyboard: buttons }
+        });
     }
-
-    // --- 💸 Withdraw UI ---
-    else if (data === "menu_withdraw") {
-        let bal = userBalances[uid] || 0.00;
-        if (bal < 0.50) {
-            await ctx.editMessageText(`❌ **Insufficient Balance**\n\n💰 **Your Balance:** $${bal.toFixed(4)}\n💵 **Minimum Required:** $0.50\n\n💡 You need at least $0.50 to transfer.`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) });
-        } else {
-            await ctx.editMessageText(`📅 **Withdrawal Not Available Today**\n\n🗓 **Today:** Monday\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process: Watch Video**\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm\n⏰ **Next withdrawal day: Tuesday**`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back to Menu", "home")]]) });
+    else if (data.startsWith("country_")) {
+        const [, service, country] = data.split("_");
+        // Find available number
+        const numIndex = availableNumbers.findIndex(n => n.service === service && n.country === country);
+        if (numIndex === -1) {
+            return bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available for this country right now.", show_alert: true });
         }
-    }
-
-    else if (data === "menu_get_number") {
-        let buttons = Object.keys(services).map(srv => [Markup.button.callback(srv, `srv_${srv}`)]);
-        buttons.push([Markup.button.callback("🏠 Main Menu", "home")]);
-        await ctx.editMessageText("🛠 Select the platform:", Markup.inlineKeyboard(buttons));
-    }
-
-    else if (data.startsWith("srv_")) {
-        const srv = data.split("_")[1];
-        let countries = [...new Set(inventory.filter(i => i.service === srv).map(i => i.country))];
-        let buttons = countries.map(c => [Markup.button.callback(c, `get_${srv}_${c}`)]);
-        if(buttons.length === 0) buttons.push([Markup.button.callback("❌ No Numbers Available", "menu_get_number")]);
-        buttons.push([Markup.button.callback("🔙 Back", "menu_get_number")]);
-        await ctx.editMessageText(`🌍 Select country for ${srv}:`, Markup.inlineKeyboard(buttons));
-    }
-
-    else if (data.startsWith("get_")) {
-        const [_, srv, cty] = data.split("_");
-        let idx = inventory.findIndex(i => i.service === srv && i.country === cty);
-        if (idx === -1) return ctx.answerCbQuery("❌ Out of stock!", { show_alert: true });
-
-        let item = inventory.splice(idx, 1)[0];
-        activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
-        // --- ✅ নম্বর শো করার UI (Same to Same) ---
-        await ctx.editMessageText(
-            `✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⌛ **Wait, Stay here... OTP Coming Soon!**`, 
-            { 
-                parse_mode: 'Markdown', 
-                ...Markup.inlineKeyboard([
-                    [Markup.button.callback("🗑 Delete Number", "menu_get_number"), Markup.button.callback("🔙 Back to Menu", "home")],
-                    [Markup.button.url("📱 OTP GROUP HERE", otpGroupLink || "#")] 
-                ]) 
+        const numberData = availableNumbers.splice(numIndex, 1)[0];
+        assignedNumbers.push({ ...numberData, userId, assignedAt: Date.now() });
+
+        const text = `✅ *Number Assigned!*\n\n📱 *${service}* | \`${numberData.number}\` | ${country}\n\n⏳ Wait, Stay here... OTP Coming Soon!`;
+        const options = {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🗑 Delete Number", callback_data: `delete_${numberData.number}` }, { text: "🔙 Back to Menu", callback_data: "main_menu" }],
+                    [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
+                ]
             }
-        );
+        };
+        bot.editMessageText(text, { chat_id: chatId, message_id: query.message.message_id, ...options });
+    }
+    else if (data.startsWith("delete_")) {
+        const number = data.split("_")[1];
+        const assignedIdx = assignedNumbers.findIndex(n => n.number === number && n.userId === userId);
+        if (assignedIdx !== -1) {
+            const numData = assignedNumbers.splice(assignedIdx, 1)[0];
+            availableNumbers.push({ service: numData.service, country: numData.country, number: numData.number });
+            bot.editMessageText("🗑 Number Deleted Successfully!", {
+                chat_id: chatId,
+                message_id: query.message.message_id,
+                reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+            });
+        }
+    }
+    else if (data === "menu_balance") {
+        const text = `💰 *Your Balance:* $${user.balance.toFixed(4)}\n\n💡 *Minimum Withdrawal:* $1.0000`;
+        bot.editMessageText(text, {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+        });
+    }
+    else if (data === "main_menu") {
+        bot.deleteMessage(chatId, query.message.message_id).catch(()=>{});
+        sendMainMenu(chatId, query.from.username);
     }
 });
 
-bot.on('text', async (ctx) => {
-    const text = ctx.message.text;
-    const uid = ctx.from.id;
+// --- ADMIN COMMANDS ---
+bot.on('message', (msg) => {
+    if (!msg.text) return;
+    const text = msg.text;
+    const chatId = msg.chat.id;
 
-    if (uid === ADMIN_ID) {
-        if (text.startsWith('/setgroup ')) {
-            otpGroupLink = text.replace('/setgroup ', '').trim();
-            return ctx.reply(`✅ OTP Group link updated.`);
-        }
-        if (text.startsWith('/broadcast ')) {
-            let msg = text.replace('/broadcast ', '');
-            allUsers.forEach(user => bot.telegram.sendMessage(user, `📢 **Broadcast:**\n\n${msg}`).catch(e => {}));
-            return ctx.reply("✅ Sent.");
-        }
-        if (text.startsWith('/bulk ')) {
-            try {
-                let lines = text.split('\n');
-                let info = lines[0].replace('/bulk ', '').split(',').map(s => s.trim());
-                let srv = info[0], cty = info[1];
-                let nums = lines.slice(1).filter(n => n.length > 5);
-                nums.forEach(n => inventory.push({ service: srv, country: cty, phone: n.trim() }));
-                return ctx.reply(`✅ Added ${nums.length} numbers.`);
-            } catch (e) { return ctx.reply("Format Error!"); }
-        }
+    // --- OTP LISTENER (Runs if message is in the specific Group) ---
+    if (chatId == GROUP_ID) {
+        // Check if any assigned number is mentioned in the group message
+        assignedNumbers.forEach((assigned, index) => {
+            if (text.includes(assigned.number)) {
+                // Number found in OTP group! Forward to user and give money
+                const rate = services[assigned.service]?.rates[assigned.country] || 0.05; // Default 0.05 if not set
+                users[assigned.userId].balance += rate;
+                
+                bot.sendMessage(assigned.userId, `🔔 *OTP RECEIVED!*\n\n📱 Number: \`${assigned.number}\`\n💬 Message: \n${text}\n\n💰 Earned: $${rate}`, { parse_mode: "Markdown" });
+                
+                // Remove from assigned list
+                assignedNumbers.splice(index, 1);
+            }
+        });
+        return; 
     }
 
-    if (ctx.chat.id == OTP_GROUP_ID) {
-        for (let phone in activeNumbers) {
-            if (text.includes(phone)) {
-                let d = activeNumbers[phone];
-                bot.telegram.sendMessage(d.uid, `📩 **OTP Received!**\n\nNumber: ${phone}\nCode: ${text}`);
-                userBalances[d.uid] = (userBalances[d.uid] || 0) + d.rate;
-                delete activeNumbers[phone];
+    // Only Admin can run the commands below
+    if (chatId != ADMIN_ID) return;
+
+    if (text.startsWith('/bulk')) {
+        // Format: /bulk Face-Book, Syria \n number1 \n number2
+        const lines = text.split('\n');
+        const firstLine = lines[0].replace('/bulk', '').trim().split(',');
+        if (firstLine.length < 2) return bot.sendMessage(chatId, "⚠️ Format error. Use:\n/bulk Service, Country\nnum1\nnum2");
+        
+        const service = firstLine[0].trim();
+        const country = firstLine[1].trim();
+        let added = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+            const num = lines[i].trim();
+            if (num) {
+                availableNumbers.push({ service, country, number: num });
+                added++;
             }
+        }
+        bot.sendMessage(chatId, `✅ Successfully added ${added} numbers to ${service} (${country}).`);
+    }
+    else if (text.startsWith('/setotpgroup')) {
+        const link = text.split(' ')[1];
+        if (link) { config.otpGroup = link; bot.sendMessage(chatId, "✅ OTP Group URL updated!"); }
+    }
+    else if (text.startsWith('/setupdategroup')) {
+        const link = text.split(' ')[1];
+        if (link) { config.updateGroup = link; bot.sendMessage(chatId, "✅ Update Group URL updated!"); }
+    }
+    else if (text.startsWith('/seeuser')) {
+        const total = Object.keys(users).length;
+        bot.sendMessage(chatId, `👥 Total Users: ${total}`);
+    }
+    else if (text.startsWith('/edit balance')) {
+        // Format: /edit balance userid amount
+        const parts = text.split(' ');
+        if (parts.length >= 4) {
+            const targetId = parts[2];
+            const amount = parseFloat(parts[3]);
+            if (users[targetId]) {
+                users[targetId].balance = amount;
+                bot.sendMessage(chatId, `✅ User ${targetId} balance updated to $${amount}`);
+            } else {
+                bot.sendMessage(chatId, "⚠️ User not found.");
+            }
+        }
+    }
+    else if (text.startsWith('/addservice')) {
+        // Format: /addservice Face-Book
+        const serviceName = text.replace('/addservice', '').trim();
+        if (serviceName) {
+            if (!services[serviceName]) services[serviceName] = { countries: [], rates: {} };
+            bot.sendMessage(chatId, `✅ Service ${serviceName} added!`);
+        }
+    }
+    else if (text.startsWith('/addcountry')) {
+        // Format: /addcountry Face-Book Syria
+        const parts = text.split(' ');
+        if (parts.length >= 3) {
+            const service = parts[1];
+            const country = parts.slice(2).join(' '); // In case country has spaces
+            if (services[service]) {
+                if (!services[service].countries.includes(country)) services[service].countries.push(country);
+                bot.sendMessage(chatId, `✅ Country ${country} added to ${service}!`);
+            } else bot.sendMessage(chatId, "⚠️ Service not found.");
+        }
+    }
+    else if (text.startsWith('/baladd')) {
+        // Format: /baladd Face-Book Syria 0.5
+        const parts = text.split(' ');
+        if (parts.length >= 4) {
+            const service = parts[1];
+            const amount = parseFloat(parts.pop());
+            const country = parts.slice(2).join(' ');
+            
+            if (services[service]) {
+                services[service].rates[country] = amount;
+                bot.sendMessage(chatId, `✅ Earning rate for ${service} (${country}) set to $${amount}`);
+            }
+        }
+    }
+    else if (text.startsWith('/broadcast')) {
+        const bMsg = text.replace('/broadcast', '').trim();
+        if (bMsg) {
+            Object.keys(users).forEach(uId => {
+                bot.sendMessage(uId, `📢 *Broadcast:*\n\n${bMsg}`, { parse_mode: "Markdown" }).catch(()=>{});
+            });
+            bot.sendMessage(chatId, "✅ Broadcast sent to all active users!");
         }
     }
 });
 
-http.createServer((req, res) => { res.writeHead(200); res.end('Alive'); }).listen(process.env.PORT || 3000);
-bot.launch({ dropPendingUpdates: true });
+console.log("Bot started successfully!");
+            
