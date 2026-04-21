@@ -12,7 +12,6 @@ let activeNumbers = {};
 let inventory = []; 
 let services = { "Face-Book": 0.0030 }; 
 let allUsers = new Set(); 
-let otpGroupLink = "https://t.me/A_ToolsX"; // ডিফল্ট লিংক
 
 function getMainMenu(ctx) {
     const username = ctx.from.username ? `@${ctx.from.username}` : ctx.from.first_name;
@@ -21,24 +20,14 @@ function getMainMenu(ctx) {
         markup: Markup.inlineKeyboard([
             [Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("💰 Balance", "menu_balance")],
             [Markup.button.callback("📊 Active Number", "menu_active"), Markup.button.callback("💸 Withdraw", "menu_withdraw")],
-            [Markup.button.url("🤖 Bot Update Channel ↗️", "https://t.me/A_ToolsX")],
-            [Markup.button.url("🎧 Support", "https://t.me/A_ToolsX")]
+            [Markup.button.url("🤖 Bot Update Channel ↗️", "https://t.me/yoosms_otp")],
+            [Markup.button.url("🎧 Support", "https://t.me/yooosmsupdate")]
         ])
     };
 }
 
-async function isUserJoined(ctx) {
-    try {
-        const member = await ctx.telegram.getChatMember('@A_ToolsX', ctx.from.id);
-        return ['member', 'administrator', 'creator'].includes(member.status);
-    } catch (e) { return false; }
-}
-
-bot.start(async (ctx) => {
+bot.start((ctx) => {
     allUsers.add(ctx.from.id);
-    const joined = await isUserJoined(ctx);
-    if (!joined) return ctx.reply(`🚀 To use this bot, you must join our channel: https://t.me/A_ToolsX`);
-    
     if (userBalances[ctx.from.id] === undefined) userBalances[ctx.from.id] = 0.00;
     const menu = getMainMenu(ctx);
     ctx.reply(menu.text, menu.markup);
@@ -48,27 +37,55 @@ bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
     const uid = ctx.from.id;
 
-    if (data === "home") return ctx.editMessageText(getMainMenu(ctx).text, getMainMenu(ctx).markup);
+    if (data === "home") {
+        const menu = getMainMenu(ctx);
+        return ctx.editMessageText(menu.text, menu.markup);
+    }
     
     // --- 💰 Balance UI ---
     if (data === "menu_balance") {
         let bal = userBalances[uid] || 0.00;
         await ctx.editMessageText(
             `💰 **Your Balance: $${bal.toFixed(4)}**\n\n💡 **Earning Rates:**\n• Face-Book: $0.0030\n\n💳 **Minimum Withdrawal: $1.0000**`,
-            { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("💸 Transfer Balance", "menu_withdraw"), Markup.button.callback("🔙 Back to Menu", "home")]]) }
+            { 
+                parse_mode: 'Markdown', 
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback("💸 Transfer Balance", "menu_withdraw"), Markup.button.callback("🔙 Back to Menu", "home")]
+                ]) 
+            }
         );
+    }
+
+    // --- 💸 Withdraw UI ---
+    else if (data === "menu_withdraw") {
+        let bal = userBalances[uid] || 0.00;
+        if (bal < 0.50) {
+            await ctx.editMessageText(
+                `❌ **Insufficient Balance**\n\n💰 **Your Balance:** $${bal.toFixed(4)}\n💵 **Minimum Required:** $0.50\n\n💡 You need at least $0.50 to transfer.`,
+                { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) }
+            );
+        } else {
+            await ctx.editMessageText(
+                `📅 **Withdrawal Not Available Today**\n\n🗓 **Today:** Monday\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process: [Watch Video](https://t.me/A_ToolsX)**\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm\n⏰ **Next withdrawal day: Tuesday**`,
+                { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back to Menu", "home")]]) }
+            );
+        }
     }
 
     // --- 📊 Active Number UI ---
     else if (data === "menu_active") {
         let myNumbers = Object.keys(activeNumbers).filter(p => activeNumbers[p].uid === uid);
         if (myNumbers.length === 0) {
-            return ctx.editMessageText(`📊 **No Active Numbers**\n\n💡 You don't have any active numbers.\nGet a number to start earning!\n\n🔄 **Numbers stay active until you delete them!**`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]]) });
+            return ctx.editMessageText(
+                `📊 **No Active Numbers**\n\n💡 You don't have any active numbers.\nGet a number to start earning!\n\n🔄 **Numbers stay active until you delete them!**`,
+                { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("📱 Get Number", "menu_get_number"), Markup.button.callback("🔙 Back", "home")]]) }
+            );
         }
         let list = myNumbers.map(p => `📱 \`${p}\` (${activeNumbers[p].service})`).join('\n');
         await ctx.editMessageText(`📊 **Your Active Numbers**\n\n${list}\n\nWaiting for OTP...`, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback("🔙 Back", "home")]]) });
     }
 
+    // --- 📱 Get Number UI ---
     else if (data === "menu_get_number") {
         let buttons = Object.keys(services).map(srv => [Markup.button.callback(srv, `srv_${srv}`)]);
         buttons.push([Markup.button.callback("🏠 Main Menu", "home")]);
@@ -92,33 +109,35 @@ bot.on('callback_query', async (ctx) => {
         let item = inventory.splice(idx, 1)[0];
         activeNumbers[item.phone] = { uid, service: srv, country: cty, rate: services[srv] };
         
-        // --- ✅ নম্বর শো করার UI (Same to Same) ---
+        // --- ✅ নম্বর শো করার UI (Same to Same as your image) ---
         await ctx.editMessageText(
             `✅ **Number Assigned!**\n\n📱 **${srv}** | \`${item.phone}\` | **${cty}**\n\n⌛ **Wait, Stay here... OTP Coming Soon!**`, 
             { 
                 parse_mode: 'Markdown', 
                 ...Markup.inlineKeyboard([
                     [Markup.button.callback("🗑 Delete Number", "menu_get_number"), Markup.button.callback("🔙 Back to Menu", "home")],
-                    [Markup.button.url("📱 OTP GROUP HERE", otpGroupLink)] // কমান্ড দিয়ে আপডেট করা লিংক এখানে কাজ করবে
+                    [Markup.button.url("📱 OTP GROUP HERE", "https://t.me/A_ToolsX")]
                 ]) 
             }
         );
     }
 });
 
+// Admin ও OTP প্রসেসিং আগের মতোই আছে...
 bot.on('text', async (ctx) => {
     const text = ctx.message.text;
     const uid = ctx.from.id;
 
     if (uid === ADMIN_ID) {
-        if (text.startsWith('/setgroup ')) {
-            otpGroupLink = text.replace('/setgroup ', '').trim();
-            return ctx.reply(`✅ OTP Group link updated to: ${otpGroupLink}`);
-        }
         if (text.startsWith('/broadcast ')) {
             let msg = text.replace('/broadcast ', '');
             allUsers.forEach(user => bot.telegram.sendMessage(user, `📢 **Broadcast:**\n\n${msg}`).catch(e => {}));
             return ctx.reply("✅ Broadcast sent.");
+        }
+        if (text.startsWith('/addservice ')) {
+            let [name, rate] = text.replace('/addservice ', '').split(',').map(s => s.trim());
+            services[name] = parseFloat(rate);
+            return ctx.reply(`✅ Added ${name}.`);
         }
         if (text.startsWith('/bulk ')) {
             try {
@@ -146,3 +165,4 @@ bot.on('text', async (ctx) => {
 
 http.createServer((req, res) => { res.writeHead(200); res.end('Alive'); }).listen(process.env.PORT || 3000);
 bot.launch({ dropPendingUpdates: true });
+            
