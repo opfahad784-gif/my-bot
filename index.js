@@ -95,13 +95,33 @@ bot.on('callback_query', (query) => {
             reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
         });
     }
+    else if (data === "menu_withdraw") {
+        const user = users[userId] || { balance: 0 };
+        bot.editMessageText(`💸 *Withdrawal Menu*\n\n💰 Your Balance: $${user.balance.toFixed(4)}\n\n⚠️ Minimum withdraw is $1.0000.\n\nClick the button below to send request to admin.`, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "📤 Send Withdraw Request", callback_data: "request_withdraw" }],
+                    [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                ]
+            }
+        });
+    }
+    else if (data === "request_withdraw") {
+        const user = users[userId] || { balance: 0 };
+        if (user.balance < 1.0) {
+            return bot.answerCallbackQuery(query.id, { text: "Insufficient balance! Need at least $1.0000", show_alert: true });
+        }
+        bot.sendMessage(ADMIN_ID, `🔔 *Withdraw Request!*\n\n👤 User: \`${userId}\`\n💰 Amount: $${user.balance.toFixed(4)}`, { parse_mode: "Markdown" });
+        bot.answerCallbackQuery(query.id, { text: "Request sent to Admin!", show_alert: true });
+    }
     else if (data.startsWith("del_")) {
         const num = data.split("_")[1];
         const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
         if (aIdx !== -1) {
             const d = assignedNumbers.splice(aIdx, 1)[0];
             availableNumbers.push({ service: d.service, country: d.country, number: d.number });
-            bot.answerCallbackQuery(query.id, { text: "Number deleted and refunded." });
+            bot.answerCallbackQuery(query.id, { text: "Number deleted." });
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
@@ -120,7 +140,6 @@ bot.on('message', (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // OTP Listener for Forwarding
     if (chatId === GROUP_ID) {
         assignedNumbers.forEach((item, index) => {
             if (text.includes(item.number)) {
@@ -134,9 +153,7 @@ bot.on('message', (msg) => {
         return;
     }
 
-    // Admin Commands Only
     if (chatId === ADMIN_ID) {
-        // Bulk Number Add
         if (text.startsWith('/bulk')) {
             const lines = text.split('\n');
             const header = lines[0].replace('/bulk', '').trim().split(',');
@@ -158,7 +175,6 @@ bot.on('message', (msg) => {
             }
             bot.sendMessage(chatId, `✅ Successfully added ${count} numbers to ${sName} (${cName}).`);
         }
-        // Balance Edit
         else if (text.startsWith('/edit balance')) {
             const parts = text.split(' ');
             if (parts.length >= 4) {
@@ -169,7 +185,6 @@ bot.on('message', (msg) => {
                 bot.sendMessage(chatId, `✅ User ${targetId} balance updated to $${amount}`);
             }
         }
-        // Rate Set
         else if (text.startsWith('/baladd')) {
             const parts = text.split(' ');
             if (parts.length >= 4) {
@@ -182,11 +197,9 @@ bot.on('message', (msg) => {
                 }
             }
         }
-        // Users Count
         else if (text === '/seeuser') {
             bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`);
         }
-        // Broadcast
         else if (text.startsWith('/broadcast')) {
             const bMsg = text.replace('/broadcast', '').trim();
             if (bMsg) {
@@ -196,7 +209,6 @@ bot.on('message', (msg) => {
                 bot.sendMessage(chatId, "✅ Broadcast sent.");
             }
         }
-        // Groups Links
         else if (text.startsWith('/setotpgroup')) {
             const link = text.split(' ')[1];
             if (link) { config.otpGroup = link; bot.sendMessage(chatId, "✅ OTP Group set."); }
@@ -207,4 +219,4 @@ bot.on('message', (msg) => {
         }
     }
 });
-                
+                    
