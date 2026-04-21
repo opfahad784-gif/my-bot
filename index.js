@@ -6,8 +6,8 @@ app.get('/', (req, res) => res.send('Bot is running!'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-// --- CONFIG (ONLY TOKEN UPDATED) ---
-const TOKEN = '8413633586:AAHa_AjpLlPxwQMDXKeYBVJk_CZSEZVSRkQ'; 
+// --- CONFIG ---
+const TOKEN = '8413633586:AAE57Su-vUygN74I_vRF40G1HhlIOfsRwok'; 
 const ADMIN_ID = 7488161246;
 const GROUP_ID = -1003958220896;
 
@@ -78,7 +78,7 @@ bot.on('callback_query', (query) => {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }, { text: "🏠 Main Menu", callback_data: "main_menu" }],
+                    [{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }, { text: "🔙 Back to Menu", callback_data: "main_menu" }],
                     [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
                 ]
             }
@@ -95,6 +95,17 @@ bot.on('callback_query', (query) => {
             reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
         });
     }
+    else if (data.startsWith("del_")) {
+        const num = data.split("_")[1];
+        const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
+        if (aIdx !== -1) {
+            const d = assignedNumbers.splice(aIdx, 1)[0];
+            availableNumbers.push({ service: d.service, country: d.country, number: d.number });
+            bot.answerCallbackQuery(query.id, { text: "Number deleted and refunded." });
+            bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+            sendMainMenu(chatId, query.from.username);
+        }
+    }
 });
 
 // --- MESSAGES & ADMIN COMMANDS ---
@@ -102,13 +113,14 @@ bot.on('message', (msg) => {
     if (!msg.text) return;
     const text = msg.text;
     const chatId = msg.chat.id;
+    const userId = msg.from.id;
 
     if (text === '/start') {
-        if (!users[msg.from.id]) users[msg.from.id] = { balance: 0 };
+        if (!users[userId]) users[userId] = { balance: 0 };
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // OTP Listener
+    // OTP Listener for Forwarding
     if (chatId === GROUP_ID) {
         assignedNumbers.forEach((item, index) => {
             if (text.includes(item.number)) {
@@ -122,12 +134,13 @@ bot.on('message', (msg) => {
         return;
     }
 
-    // Admin Commands
+    // Admin Commands Only
     if (chatId === ADMIN_ID) {
+        // Bulk Number Add
         if (text.startsWith('/bulk')) {
             const lines = text.split('\n');
             const header = lines[0].replace('/bulk', '').trim().split(',');
-            if (header.length < 2) return bot.sendMessage(chatId, "Format: /bulk Service, Country\nNumbers...");
+            if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country\nNumbers...");
 
             const sName = header[0].trim();
             const cName = header[1].trim();
@@ -143,10 +156,55 @@ bot.on('message', (msg) => {
                     count++;
                 }
             }
-            bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
+            bot.sendMessage(chatId, `✅ Successfully added ${count} numbers to ${sName} (${cName}).`);
+        }
+        // Balance Edit
+        else if (text.startsWith('/edit balance')) {
+            const parts = text.split(' ');
+            if (parts.length >= 4) {
+                const targetId = parts[2];
+                const amount = parseFloat(parts[3]);
+                if (!users[targetId]) users[targetId] = { balance: 0 };
+                users[targetId].balance = amount;
+                bot.sendMessage(chatId, `✅ User ${targetId} balance updated to $${amount}`);
+            }
+        }
+        // Rate Set
+        else if (text.startsWith('/baladd')) {
+            const parts = text.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop());
+                const sName = parts[1];
+                const cName = parts.slice(2).join(' ');
+                if (services[sName]) {
+                    services[sName].rates[cName] = amount;
+                    bot.sendMessage(chatId, `✅ Rate for ${sName} (${cName}) set to $${amount}`);
+                }
+            }
+        }
+        // Users Count
+        else if (text === '/seeuser') {
+            bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`);
+        }
+        // Broadcast
+        else if (text.startsWith('/broadcast')) {
+            const bMsg = text.replace('/broadcast', '').trim();
+            if (bMsg) {
+                Object.keys(users).forEach(uId => {
+                    bot.sendMessage(uId, `📢 *Broadcast:*\n\n${bMsg}`, { parse_mode: "Markdown" }).catch(()=>{});
+                });
+                bot.sendMessage(chatId, "✅ Broadcast sent.");
+            }
+        }
+        // Groups Links
+        else if (text.startsWith('/setotpgroup')) {
+            const link = text.split(' ')[1];
+            if (link) { config.otpGroup = link; bot.sendMessage(chatId, "✅ OTP Group set."); }
+        }
+        else if (text.startsWith('/setupdategroup')) {
+            const link = text.split(' ')[1];
+            if (link) { config.updateGroup = link; bot.sendMessage(chatId, "✅ Update Group set."); }
         }
     }
 });
-
-console.log("Bot is online with new token.");
-            
+                                      
