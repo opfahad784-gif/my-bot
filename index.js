@@ -6,8 +6,8 @@ app.get('/', (req, res) => res.send('Bot is running!'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-// --- CONFIG ---
-const TOKEN = process.env.TOKEN; 
+// --- CONFIG (ONLY TOKEN UPDATED) ---
+const TOKEN = '8413633586:AAHa_AjpLlPxwQMDXKeYBVJk_CZSEZVSRkQ'; 
 const ADMIN_ID = 7488161246;
 const GROUP_ID = -1003958220896;
 
@@ -57,7 +57,7 @@ bot.on('callback_query', (query) => {
     else if (data.startsWith("service_")) {
         const sName = data.split("_")[1];
         const countries = services[sName].countries;
-        if (!countries || countries.length === 0) return bot.answerCallbackQuery(query.id, { text: "No countries available for this service.", show_alert: true });
+        if (!countries || countries.length === 0) return bot.answerCallbackQuery(query.id, { text: "No countries available.", show_alert: true });
 
         let buttons = countries.map(c => [{ text: c, callback_data: `country_${sName}_${c}` }]);
         buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
@@ -78,7 +78,7 @@ bot.on('callback_query', (query) => {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }, { text: "🔙 Back to Menu", callback_data: "main_menu" }],
+                    [{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }, { text: "🏠 Main Menu", callback_data: "main_menu" }],
                     [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
                 ]
             }
@@ -143,8 +143,10 @@ bot.on('message', (msg) => {
                     count++;
                 }
             }
-            bot.sendMessage(chatId, `✅ Successfully added ${count} numbers to ${sName} (${cName}).`);
+            bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
         }
     }
 });
-    
+
+console.log("Bot is online with new token.");
+            
