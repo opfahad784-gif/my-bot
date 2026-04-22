@@ -123,15 +123,19 @@ bot.on('callback_query', (query) => {
         bot.answerCallbackQuery(query.id, { text: "Request sent!", show_alert: true });
     }
     else if (data.startsWith("del_")) {
-        const num = data.split("_")[1];
+        const num = data.replace("del_", ""); // Fixed logic
         const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
+        
         if (aIdx !== -1) {
             const d = assignedNumbers.splice(aIdx, 1)[0];
             availableNumbers.push({ service: d.service, country: d.country, number: d.number });
-            bot.answerCallbackQuery(query.id, { text: "Number deleted." });
-            bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-            sendMainMenu(chatId, query.from.username);
+            bot.answerCallbackQuery(query.id, { text: "🗑 Number deleted and refunded." });
+        } else {
+            bot.answerCallbackQuery(query.id, { text: "⚠️ Number already deleted or processed!", show_alert: true });
         }
+        
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+        sendMainMenu(chatId, query.from.username);
     }
 });
 
@@ -153,7 +157,11 @@ bot.on('message', (msg) => {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
-                bot.sendMessage(item.userId, `🔔 *OTP RECEIVED!*\n\n📱 Number: \`${item.number}\`\n💬 Msg: ${text}\n💰 Earned: $${reward}`, { parse_mode: "Markdown" });
+                
+                // NEW UI FOR OTP FORWARD (Full Number shown clearly)
+                const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:*\n${text}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
+                
+                bot.sendMessage(item.userId, otpMessage, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
             }
         });
@@ -166,7 +174,7 @@ bot.on('message', (msg) => {
             const header = lines[0].replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country\nNumbers...");
             const sName = header[0].trim();
-            const cName = header[1].trim(); // Potaka emoji shoho country name ekhane save hobe
+            const cName = header[1].trim(); 
             
             if (!services[sName]) services[sName] = { countries: [], rates: {} };
             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
@@ -216,6 +224,16 @@ bot.on('message', (msg) => {
                 bot.sendMessage(chatId, `✅ User balance updated.`);
             }
         }
+        else if (text === '/seeuser') {
+            bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`);
+        }
+        else if (text.startsWith('/broadcast')) {
+            const bMsg = text.replace('/broadcast', '').trim();
+            if (bMsg) {
+                Object.keys(users).forEach(uId => bot.sendMessage(uId, `📢 *Broadcast:*\n\n${bMsg}`, { parse_mode: "Markdown" }).catch(()=>{}));
+                bot.sendMessage(chatId, "✅ Broadcast sent.");
+            }
+        }
     }
 });
-            
+                            
