@@ -92,6 +92,7 @@ bot.on('callback_query', (query) => {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "🗑 Delete Number", callback_data: `del_${active.number}` }],
+                    [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }],
                     [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
                 ]
             }
@@ -115,17 +116,21 @@ bot.on('callback_query', (query) => {
             reply_markup: { inline_keyboard: [[{ text: "📤 Send Request", callback_data: "request_withdraw" }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
         });
     }
+    else if (data === "request_withdraw") {
+        const user = users[userId] || { balance: 0 };
+        if (user.balance < 1.0) return bot.answerCallbackQuery(query.id, { text: "Minimum $1.0000 required!", show_alert: true });
+        bot.sendMessage(ADMIN_ID, `🔔 *Withdraw Request!*\n👤 User: \`${userId}\`\n💰 Amount: $${user.balance.toFixed(4)}`);
+        bot.answerCallbackQuery(query.id, { text: "Request sent!", show_alert: true });
+    }
     else if (data.startsWith("del_")) {
         const num = data.split("_")[1];
         const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
         if (aIdx !== -1) {
             const d = assignedNumbers.splice(aIdx, 1)[0];
             availableNumbers.push({ service: d.service, country: d.country, number: d.number });
-            bot.answerCallbackQuery(query.id, { text: "Number deleted successfully." });
+            bot.answerCallbackQuery(query.id, { text: "Number deleted." });
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
-        } else {
-            bot.answerCallbackQuery(query.id, { text: "Number already deleted or not found.", show_alert: true });
         }
     }
 });
@@ -148,11 +153,7 @@ bot.on('message', (msg) => {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
-                
-                // OTP FORMAT UPDATED AS PER SCREENSHOT
-                const otpMsg = `✅ *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:* \`${text}\`\n💰 *Earned:* $${reward.toFixed(4)}`;
-                
-                bot.sendMessage(item.userId, otpMsg, { parse_mode: "Markdown" });
+                bot.sendMessage(item.userId, `🔔 *OTP RECEIVED!*\n\n📱 Number: \`${item.number}\`\n💬 Msg: ${text}\n💰 Earned: $${reward}`, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
             }
         });
@@ -160,9 +161,31 @@ bot.on('message', (msg) => {
     }
 
     if (chatId === ADMIN_ID) {
-        if (text.startsWith('/setotpgroup')) {
+        if (text.startsWith('/bulk')) {
+            const lines = text.split('\n');
+            const header = lines[0].replace('/bulk', '').trim().split(',');
+            if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country\nNumbers...");
+            const sName = header[0].trim();
+            const cName = header[1].trim(); // Potaka emoji shoho country name ekhane save hobe
+            
+            if (!services[sName]) services[sName] = { countries: [], rates: {} };
+            if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+            
+            let count = 0;
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim()) {
+                    availableNumbers.push({ service: sName, country: cName, number: lines[i].trim() });
+                    count++;
+                }
+            }
+            bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
+        }
+        else if (text.startsWith('/setotpgroup')) {
             const link = text.split(' ')[1];
-            if (link) { config.otpGroup = link; bot.sendMessage(chatId, "✅ OTP Group link updated."); }
+            if (link && link.startsWith('http')) {
+                config.otpGroup = link;
+                bot.sendMessage(chatId, `✅ OTP Group link updated.`);
+            }
         }
         else if (text.startsWith('/addservice')) {
             const sName = text.replace('/addservice', '').trim();
@@ -171,23 +194,28 @@ bot.on('message', (msg) => {
                 bot.sendMessage(chatId, `✅ Service '${sName}' added.`);
             }
         }
-        else if (text.startsWith('/bulk')) {
-            const lines = text.split('\n');
-            const header = lines[0].replace('/bulk', '').trim().split(',');
-            if (header.length < 2) return;
-            const sName = header[0].trim();
-            const cName = header[1].trim();
-            if (!services[sName]) services[sName] = { countries: [], rates: {} };
-            if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-            let count = 0;
-            for (let i = 1; i < lines.length; i++) {
-                if (lines[i].trim()) {
-                    availableNumbers.push({ service: sName, country: cName, number: lines[i].trim() });
-                    count++;
+        else if (text.startsWith('/baladd')) {
+            const parts = text.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop());
+                const sName = parts[1];
+                const cName = parts.slice(2).join(' ');
+                if (services[sName]) {
+                    services[sName].rates[cName] = amount;
+                    bot.sendMessage(chatId, `✅ Rate for ${sName} (${cName}) set to $${amount}`);
                 }
             }
-            bot.sendMessage(chatId, `✅ Added ${count} numbers.`);
+        }
+        else if (text.startsWith('/edit balance')) {
+            const parts = text.split(' ');
+            if (parts.length >= 4) {
+                const targetId = parts[2];
+                const amount = parseFloat(parts[3]);
+                if (!users[targetId]) users[targetId] = { balance: 0 };
+                users[targetId].balance = amount;
+                bot.sendMessage(chatId, `✅ User balance updated.`);
+            }
         }
     }
 });
-                        
+            
