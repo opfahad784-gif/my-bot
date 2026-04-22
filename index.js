@@ -13,12 +13,14 @@ const GROUP_ID = -1003958220896;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// --- DATABASE ---
-let users = {}; 
-let services = {}; 
-let availableNumbers = []; 
-let assignedNumbers = []; 
-let config = {
+// --- DATABASE (Persistence Logic) ---
+// Note: Memory base database bot restart hole reset hoy. 
+// Permanent save rakhte hole MongoDB ba Firebase use kora best.
+let users = users || {}; 
+let services = services || {}; 
+let availableNumbers = availableNumbers || []; 
+let assignedNumbers = assignedNumbers || []; 
+let config = config || {
     otpGroup: "https://t.me/",
     updateGroup: "https://t.me/SureSmsOfficial"
 };
@@ -104,36 +106,19 @@ bot.on('callback_query', (query) => {
     }
     else if (data === "menu_balance") {
         const user = users[userId] || { balance: 0 };
-        bot.editMessageText(`💰 *Your Balance:* $${user.balance.toFixed(4)}\n\n💡 *Minimum Withdrawal:* $1.0000`, {
+        bot.editMessageText(`💰 *Your Balance:* $${user.balance.toFixed(4)}`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
         });
     }
-    else if (data === "menu_withdraw") {
-        const user = users[userId] || { balance: 0 };
-        bot.editMessageText(`💸 *Withdrawal Menu*\n\n💰 Your Balance: $${user.balance.toFixed(4)}\n\n⚠️ Minimum withdraw is $1.0000.`, {
-            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "📤 Send Request", callback_data: "request_withdraw" }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
-        });
-    }
-    else if (data === "request_withdraw") {
-        const user = users[userId] || { balance: 0 };
-        if (user.balance < 1.0) return bot.answerCallbackQuery(query.id, { text: "Minimum $1.0000 required!", show_alert: true });
-        bot.sendMessage(ADMIN_ID, `🔔 *Withdraw Request!*\n👤 User: \`${userId}\`\n💰 Amount: $${user.balance.toFixed(4)}`);
-        bot.answerCallbackQuery(query.id, { text: "Request sent!", show_alert: true });
-    }
     else if (data.startsWith("del_")) {
-        const num = data.replace("del_", ""); // Fixed logic
+        const num = data.replace("del_", "");
         const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
-        
         if (aIdx !== -1) {
             const d = assignedNumbers.splice(aIdx, 1)[0];
             availableNumbers.push({ service: d.service, country: d.country, number: d.number });
-            bot.answerCallbackQuery(query.id, { text: "🗑 Number deleted and refunded." });
-        } else {
-            bot.answerCallbackQuery(query.id, { text: "⚠️ Number already deleted or processed!", show_alert: true });
+            bot.answerCallbackQuery(query.id, { text: "🗑 Number deleted." });
         }
-        
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
     }
@@ -157,11 +142,7 @@ bot.on('message', (msg) => {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
-                
-                // NEW UI FOR OTP FORWARD (Full Number shown clearly)
-                const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:*\n${text}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
-                
-                bot.sendMessage(item.userId, otpMessage, { parse_mode: "Markdown" });
+                bot.sendMessage(item.userId, `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:*\n${text}\n\n💰 *Earned:* $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
             }
         });
@@ -169,16 +150,18 @@ bot.on('message', (msg) => {
     }
 
     if (chatId === ADMIN_ID) {
-        if (text.startsWith('/bulk')) {
+        if (text === '/deleteallnumbers') {
+            availableNumbers = [];
+            bot.sendMessage(chatId, "🗑 All available numbers have been deleted from the database.");
+        }
+        else if (text.startsWith('/bulk')) {
             const lines = text.split('\n');
             const header = lines[0].replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country\nNumbers...");
             const sName = header[0].trim();
             const cName = header[1].trim(); 
-            
             if (!services[sName]) services[sName] = { countries: [], rates: {} };
             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-            
             let count = 0;
             for (let i = 1; i < lines.length; i++) {
                 if (lines[i].trim()) {
@@ -186,21 +169,7 @@ bot.on('message', (msg) => {
                     count++;
                 }
             }
-            bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
-        }
-        else if (text.startsWith('/setotpgroup')) {
-            const link = text.split(' ')[1];
-            if (link && link.startsWith('http')) {
-                config.otpGroup = link;
-                bot.sendMessage(chatId, `✅ OTP Group link updated.`);
-            }
-        }
-        else if (text.startsWith('/addservice')) {
-            const sName = text.replace('/addservice', '').trim();
-            if (sName && !services[sName]) {
-                services[sName] = { countries: [], rates: {} };
-                bot.sendMessage(chatId, `✅ Service '${sName}' added.`);
-            }
+            bot.sendMessage(chatId, `✅ Added ${count} numbers.`);
         }
         else if (text.startsWith('/baladd')) {
             const parts = text.split(' ');
@@ -214,6 +183,10 @@ bot.on('message', (msg) => {
                 }
             }
         }
+        else if (text.startsWith('/setotpgroup')) {
+            const link = text.split(' ')[1];
+            if (link) { config.otpGroup = link; bot.sendMessage(chatId, "✅ OTP Group link updated."); }
+        }
         else if (text.startsWith('/edit balance')) {
             const parts = text.split(' ');
             if (parts.length >= 4) {
@@ -224,16 +197,6 @@ bot.on('message', (msg) => {
                 bot.sendMessage(chatId, `✅ User balance updated.`);
             }
         }
-        else if (text === '/seeuser') {
-            bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`);
-        }
-        else if (text.startsWith('/broadcast')) {
-            const bMsg = text.replace('/broadcast', '').trim();
-            if (bMsg) {
-                Object.keys(users).forEach(uId => bot.sendMessage(uId, `📢 *Broadcast:*\n\n${bMsg}`, { parse_mode: "Markdown" }).catch(()=>{}));
-                bot.sendMessage(chatId, "✅ Broadcast sent.");
-            }
-        }
     }
 });
-                            
+            
