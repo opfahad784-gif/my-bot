@@ -47,7 +47,6 @@ bot.on('callback_query', (query) => {
     if (data === "menu_get_number") {
         const serviceKeys = Object.keys(services);
         if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services added yet!", show_alert: true });
-
         let buttons = serviceKeys.map(s => [{ text: s, callback_data: `service_${s}` }]);
         buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
         bot.editMessageText("🛠 Select the platform you need to access:", {
@@ -59,7 +58,6 @@ bot.on('callback_query', (query) => {
         const sName = data.split("_")[1];
         const countries = services[sName].countries;
         if (!countries || countries.length === 0) return bot.answerCallbackQuery(query.id, { text: "No countries available.", show_alert: true });
-
         let buttons = countries.map(c => [{ text: c, callback_data: `country_${sName}_${c}` }]);
         buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
         bot.editMessageText(`🌍 Select country for ${sName}:`, {
@@ -71,10 +69,8 @@ bot.on('callback_query', (query) => {
         const [, sName, cName] = data.split("_");
         const idx = availableNumbers.findIndex(n => n.service === sName && n.country === cName);
         if (idx === -1) return bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers left!", show_alert: true });
-
         const numData = availableNumbers.splice(idx, 1)[0];
         assignedNumbers.push({ ...numData, userId });
-
         bot.editMessageText(`✅ *Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName}\n\n⏳ Wait, Stay here... OTP Coming Soon!`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: {
@@ -126,7 +122,6 @@ bot.on('callback_query', (query) => {
     else if (data.startsWith("del_")) {
         const num = data.replace("del_", ""); 
         const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
-        
         if (aIdx !== -1) {
             const d = assignedNumbers.splice(aIdx, 1)[0];
             availableNumbers.push({ service: d.service, country: d.country, number: d.number });
@@ -134,7 +129,6 @@ bot.on('callback_query', (query) => {
         } else {
             bot.answerCallbackQuery(query.id, { text: "⚠️ Number already deleted!", show_alert: true });
         }
-        
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
     }
@@ -150,14 +144,12 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // --- GROUP OTP HANDLER ---
     if (chatId === GROUP_ID && msg.text) {
         assignedNumbers.forEach((item, index) => {
             if (msg.text.includes(item.number)) {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
-                
                 const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:*\n${msg.text}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
                 bot.sendMessage(item.userId, otpMessage, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
@@ -166,25 +158,33 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
-        // Bulk from Text File OR Message
-        if (msg.text?.startsWith('/bulk') || (msg.caption?.startsWith('/bulk') && msg.document)) {
-            const caption = msg.text || msg.caption;
-            const header = caption.replace('/bulk', '').trim().split(',');
+        // Updated Bulk Command to handle File in Caption OR Reply
+        const commandText = msg.text || msg.caption;
+        if (commandText && commandText.startsWith('/bulk')) {
+            const header = commandText.replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country");
             
             const sName = header[0].trim();
             const cName = header[1].trim();
             let numbersText = "";
 
-            if (msg.document) {
-                const fileLink = await bot.getFileLink(msg.document.file_id);
-                const response = await axios.get(fileLink);
-                numbersText = response.data;
+            // Check if document is in current message or reply
+            const doc = msg.document || msg.reply_to_message?.document;
+
+            if (doc) {
+                try {
+                    const fileLink = await bot.getFileLink(doc.file_id);
+                    const response = await axios.get(fileLink);
+                    numbersText = response.data.toString();
+                } catch (e) {
+                    return bot.sendMessage(chatId, "❌ File read failed.");
+                }
             } else {
-                numbersText = msg.text.split('\n').slice(1).join('\n');
+                numbersText = commandText.split('\n').slice(1).join('\n');
             }
+
+            if (!numbersText.trim()) return bot.sendMessage(chatId, "❌ No numbers found in file or message.");
 
             if (!services[sName]) services[sName] = { countries: [], rates: {} };
             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
@@ -201,17 +201,11 @@ bot.on('message', async (msg) => {
         }
         else if (msg.text?.startsWith('/setotpgroup')) {
             const link = msg.text.split(' ')[1];
-            if (link && link.startsWith('http')) {
-                config.otpGroup = link;
-                bot.sendMessage(chatId, `✅ OTP Group link updated.`);
-            }
+            if (link && link.startsWith('http')) { config.otpGroup = link; bot.sendMessage(chatId, `✅ OTP Group link updated.`); }
         }
         else if (msg.text?.startsWith('/addservice')) {
             const sName = msg.text.replace('/addservice', '').trim();
-            if (sName && !services[sName]) {
-                services[sName] = { countries: [], rates: {} };
-                bot.sendMessage(chatId, `✅ Service '${sName}' added.`);
-            }
+            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service '${sName}' added.`); }
         }
         else if (msg.text?.startsWith('/baladd')) {
             const parts = msg.text.split(' ');
@@ -219,10 +213,7 @@ bot.on('message', async (msg) => {
                 const amount = parseFloat(parts.pop());
                 const sName = parts[1];
                 const cName = parts.slice(2).join(' ');
-                if (services[sName]) {
-                    services[sName].rates[cName] = amount;
-                    bot.sendMessage(chatId, `✅ Rate for ${sName} (${cName}) set to $${amount}`);
-                }
+                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate for ${sName} (${cName}) set to $${amount}`); }
             }
         }
         else if (msg.text?.startsWith('/edit balance')) {
@@ -235,9 +226,7 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, `✅ User balance updated.`);
             }
         }
-        else if (msg.text === '/seeuser') {
-            bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`);
-        }
+        else if (msg.text === '/seeuser') { bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`); }
         else if (msg.text?.startsWith('/broadcast')) {
             const bMsg = msg.text.replace('/broadcast', '').trim();
             if (bMsg) {
@@ -247,4 +236,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-            
+                                           
