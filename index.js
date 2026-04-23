@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
-const https = require('https'); // Axios er bodole built-in https use kora hoyeche
+const https = require('https');
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
@@ -144,13 +144,18 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    if (chatId === GROUP_ID && msg.text) {
+    // --- FIXED FORWARDING LOGIC ---
+    if (chatId === GROUP_ID) {
+        const msgText = msg.text || "";
+        // Pure numeric content check
         assignedNumbers.forEach((item, index) => {
-            if (msg.text.includes(item.number)) {
+            // Check if number exists in the group message
+            if (msgText.includes(item.number)) {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
-                const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:*\n${msg.text}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
+                
+                const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Message:*\n${msgText}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
                 bot.sendMessage(item.userId, otpMessage, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
             }
