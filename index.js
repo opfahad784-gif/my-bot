@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
-const axios = require('axios');
+const https = require('https'); // Axios er bodole built-in https use kora hoyeche
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
@@ -159,7 +159,6 @@ bot.on('message', async (msg) => {
     }
 
     if (chatId === ADMIN_ID) {
-        // Updated Bulk Command to handle File in Caption OR Reply
         const commandText = msg.text || msg.caption;
         if (commandText && commandText.startsWith('/bulk')) {
             const header = commandText.replace('/bulk', '').trim().split(',');
@@ -167,37 +166,38 @@ bot.on('message', async (msg) => {
             
             const sName = header[0].trim();
             const cName = header[1].trim();
-            let numbersText = "";
-
-            // Check if document is in current message or reply
             const doc = msg.document || msg.reply_to_message?.document;
 
             if (doc) {
                 try {
                     const fileLink = await bot.getFileLink(doc.file_id);
-                    const response = await axios.get(fileLink);
-                    numbersText = response.data.toString();
-                } catch (e) {
-                    return bot.sendMessage(chatId, "❌ File read failed.");
-                }
+                    https.get(fileLink, (res) => {
+                        let data = '';
+                        res.on('data', (chunk) => { data += chunk; });
+                        res.on('end', () => {
+                            let count = 0;
+                            if (!services[sName]) services[sName] = { countries: [], rates: {} };
+                            if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                            data.split('\n').forEach(line => {
+                                const num = line.trim();
+                                if (num) { availableNumbers.push({ service: sName, country: cName, number: num }); count++; }
+                            });
+                            bot.sendMessage(chatId, `✅ Added ${count} numbers from file to ${sName} (${cName}).`);
+                        });
+                    }).on("error", (err) => { bot.sendMessage(chatId, "❌ File download failed."); });
+                } catch (e) { bot.sendMessage(chatId, "❌ Error processing file."); }
             } else {
-                numbersText = commandText.split('\n').slice(1).join('\n');
+                let numbersText = commandText.split('\n').slice(1).join('\n');
+                if (!numbersText.trim()) return bot.sendMessage(chatId, "❌ No numbers found.");
+                if (!services[sName]) services[sName] = { countries: [], rates: {} };
+                if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                let count = 0;
+                numbersText.split('\n').forEach(line => {
+                    const num = line.trim();
+                    if (num) { availableNumbers.push({ service: sName, country: cName, number: num }); count++; }
+                });
+                bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
             }
-
-            if (!numbersText.trim()) return bot.sendMessage(chatId, "❌ No numbers found in file or message.");
-
-            if (!services[sName]) services[sName] = { countries: [], rates: {} };
-            if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-            
-            let count = 0;
-            numbersText.split('\n').forEach(line => {
-                const num = line.trim();
-                if (num) {
-                    availableNumbers.push({ service: sName, country: cName, number: num });
-                    count++;
-                }
-            });
-            bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
         }
         else if (msg.text?.startsWith('/setotpgroup')) {
             const link = msg.text.split(' ')[1];
@@ -236,4 +236,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                           
+            
