@@ -20,7 +20,7 @@ let services = {};
 let availableNumbers = []; 
 let assignedNumbers = []; 
 let config = {
-    otpGroup: "https://t.me/yoosms_otp", // Updated as requested
+    otpGroup: "https://t.me/yoosms_otp", 
     updateGroup: "https://t.me/SureSmsOfficial"
 };
 
@@ -150,7 +150,6 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // --- FIX: FORWARDING LOGIC ---
     if (chatId === GROUP_ID || msg.chat.title?.includes("otp")) {
         const msgText = msg.text || msg.caption || "";
         assignedNumbers.forEach((item, index) => {
@@ -170,7 +169,24 @@ bot.on('message', async (msg) => {
 
     if (chatId === ADMIN_ID) {
         const commandText = msg.text || msg.caption;
-        if (commandText && commandText.startsWith('/bulk')) {
+        if (!commandText) return;
+
+        // --- DELETE NUMBER COMMAND ---
+        if (commandText.startsWith('/numdel')) {
+            const parts = commandText.replace('/numdel', '').trim().split(' ');
+            if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
+
+            const sName = parts[0].trim();
+            const cName = parts[1].trim();
+
+            const initialLength = availableNumbers.length;
+            availableNumbers = availableNumbers.filter(item => !(item.service === sName && item.country === cName));
+            
+            const deletedCount = initialLength - availableNumbers.length;
+            bot.sendMessage(chatId, `✅ ${deletedCount} ti number delete kora hoyeche (${sName} - ${cName})`);
+        }
+        
+        else if (commandText.startsWith('/bulk')) {
             const header = commandText.replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country");
             
@@ -215,16 +231,16 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
             }
         }
-        else if (msg.text?.startsWith('/setotpgroup')) {
-            const link = msg.text.split(' ')[1];
+        else if (commandText.startsWith('/setotpgroup')) {
+            const link = commandText.split(' ')[1];
             if (link && link.startsWith('http')) { config.otpGroup = link; bot.sendMessage(chatId, `✅ OTP Group link updated.`); }
         }
-        else if (msg.text?.startsWith('/addservice')) {
-            const sName = msg.text.replace('/addservice', '').trim();
+        else if (commandText.startsWith('/addservice')) {
+            const sName = commandText.replace('/addservice', '').trim();
             if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service '${sName}' added.`); }
         }
-        else if (msg.text?.startsWith('/baladd')) {
-            const parts = msg.text.split(' ');
+        else if (commandText.startsWith('/baladd')) {
+            const parts = commandText.split(' ');
             if (parts.length >= 4) {
                 const amount = parseFloat(parts.pop());
                 const sName = parts[1];
@@ -232,8 +248,8 @@ bot.on('message', async (msg) => {
                 if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate for ${sName} (${cName}) set to $${amount}`); }
             }
         }
-        else if (msg.text?.startsWith('/edit balance')) {
-            const parts = msg.text.split(' ');
+        else if (commandText.startsWith('/edit balance')) {
+            const parts = commandText.split(' ');
             if (parts.length >= 4) {
                 const targetId = parts[2];
                 const amount = parseFloat(parts[3]);
@@ -242,9 +258,9 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, `✅ User balance updated.`);
             }
         }
-        else if (msg.text === '/seeuser') { bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`); }
-        else if (msg.text?.startsWith('/broadcast')) {
-            const bMsg = msg.text.replace('/broadcast', '').trim();
+        else if (commandText === '/seeuser') { bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`); }
+        else if (commandText.startsWith('/broadcast')) {
+            const bMsg = commandText.replace('/broadcast', '').trim();
             if (bMsg) {
                 Object.keys(users).forEach(uId => bot.sendMessage(uId, `📢 *Broadcast:*\n\n${bMsg}`, { parse_mode: "Markdown" }).catch(()=>{}));
                 bot.sendMessage(chatId, "✅ Broadcast sent.");
@@ -252,4 +268,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-            
+                
