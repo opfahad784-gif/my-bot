@@ -20,7 +20,7 @@ let services = {};
 let availableNumbers = []; 
 let assignedNumbers = []; 
 let config = {
-    otpGroup: "https://t.me/",
+    otpGroup: "https://t.me/yoosms_otp", // Updated as requested
     updateGroup: "https://t.me/SureSmsOfficial"
 };
 
@@ -67,7 +67,6 @@ bot.on('callback_query', (query) => {
     }
     else if (data.startsWith("country_")) {
         const [, sName, cName] = data.split("_");
-        
         const filteredIndices = availableNumbers
             .map((n, i) => (n.service === sName && n.country === cName ? i : -1))
             .filter(i => i !== -1);
@@ -151,8 +150,9 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    if (chatId === GROUP_ID) {
-        const msgText = msg.text || "";
+    // --- FIX: FORWARDING LOGIC ---
+    if (chatId === GROUP_ID || msg.chat.title?.includes("otp")) {
+        const msgText = msg.text || msg.caption || "";
         assignedNumbers.forEach((item, index) => {
             const lastFourDigits = item.number.slice(-4);
             if (msgText.includes(lastFourDigits)) {
@@ -188,11 +188,9 @@ bot.on('message', async (msg) => {
                             let count = 0;
                             if (!services[sName]) services[sName] = { countries: [], rates: {} };
                             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                            
-                            // FIXED LOGIC: Extracts only numeric digits from each line
                             data.split('\n').forEach(line => {
                                 const cleanNum = line.replace(/\D/g, '').trim(); 
-                                if (cleanNum.length >= 5) { // Validates if it's a real number
+                                if (cleanNum.length >= 5) {
                                     availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
                                     count++; 
                                 }
@@ -254,3 +252,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
+            
