@@ -21,7 +21,7 @@ let availableNumbers = [];
 let assignedNumbers = []; 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
-    updateGroup: "https://t.me/SureSmsOfficial"
+    updateGroup: "https://t.me/yooosmsupdate"
 };
 
 // --- UI HELPERS ---
