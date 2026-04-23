@@ -188,11 +188,12 @@ bot.on('message', async (msg) => {
                             let count = 0;
                             if (!services[sName]) services[sName] = { countries: [], rates: {} };
                             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                            
+                            // FIXED LOGIC: Extracts only numeric digits from each line
                             data.split('\n').forEach(line => {
-                                const num = line.trim();
-                                // FIX: Sudhu numbers gulo filter korbe, code ba text noy
-                                if (num && /^\+?\d+$/.test(num)) { 
-                                    availableNumbers.push({ service: sName, country: cName, number: num }); 
+                                const cleanNum = line.replace(/\D/g, '').trim(); 
+                                if (cleanNum.length >= 5) { // Validates if it's a real number
+                                    availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
                                     count++; 
                                 }
                             });
@@ -207,9 +208,9 @@ bot.on('message', async (msg) => {
                 if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
                 let count = 0;
                 numbersText.split('\n').forEach(line => {
-                    const num = line.trim();
-                    if (num && /^\+?\d+$/.test(num)) { 
-                        availableNumbers.push({ service: sName, country: cName, number: num }); 
+                    const cleanNum = line.replace(/\D/g, '').trim();
+                    if (cleanNum.length >= 5) { 
+                        availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
                         count++; 
                     }
                 });
@@ -253,4 +254,3 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                            
