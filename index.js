@@ -144,13 +144,15 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // --- FIXED FORWARDING LOGIC ---
+    // --- FORWARDING LOGIC (LAST 4 DIGITS MATCH) ---
     if (chatId === GROUP_ID) {
         const msgText = msg.text || "";
-        // Pure numeric content check
         assignedNumbers.forEach((item, index) => {
-            // Check if number exists in the group message
-            if (msgText.includes(item.number)) {
+            // Get last 4 digits of the assigned number
+            const lastFourDigits = item.number.slice(-4);
+            
+            // Check if those last 4 digits are present in the group message
+            if (msgText.includes(lastFourDigits)) {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
@@ -241,4 +243,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-            
+                                               
