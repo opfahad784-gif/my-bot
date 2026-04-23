@@ -150,6 +150,7 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
+    // --- FIX: FORWARDING LOGIC ---
     if (chatId === GROUP_ID || msg.chat.title?.includes("otp")) {
         const msgText = msg.text || msg.caption || "";
         assignedNumbers.forEach((item, index) => {
@@ -159,6 +160,7 @@ bot.on('message', async (msg) => {
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
                 
+                // User-ke full message pathano hocche
                 const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Full Message:*\n${msgText}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
                 bot.sendMessage(item.userId, otpMessage, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
@@ -171,17 +173,13 @@ bot.on('message', async (msg) => {
         const commandText = msg.text || msg.caption;
         if (!commandText) return;
 
-        // --- DELETE NUMBER COMMAND ---
         if (commandText.startsWith('/numdel')) {
             const parts = commandText.replace('/numdel', '').trim().split(' ');
             if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
-
             const sName = parts[0].trim();
             const cName = parts[1].trim();
-
             const initialLength = availableNumbers.length;
             availableNumbers = availableNumbers.filter(item => !(item.service === sName && item.country === cName));
-            
             const deletedCount = initialLength - availableNumbers.length;
             bot.sendMessage(chatId, `✅ ${deletedCount} ti number delete kora hoyeche (${sName} - ${cName})`);
         }
@@ -189,7 +187,6 @@ bot.on('message', async (msg) => {
         else if (commandText.startsWith('/bulk')) {
             const header = commandText.replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country");
-            
             const sName = header[0].trim();
             const cName = header[1].trim();
             const doc = msg.document || msg.reply_to_message?.document;
@@ -211,33 +208,19 @@ bot.on('message', async (msg) => {
                                     count++; 
                                 }
                             });
-                            bot.sendMessage(chatId, `✅ Added ${count} numbers from file to ${sName} (${cName}).`);
+                            bot.sendMessage(chatId, `✅ Added ${count} numbers.`);
                         });
-                    }).on("error", (err) => { bot.sendMessage(chatId, "❌ File download failed."); });
-                } catch (e) { bot.sendMessage(chatId, "❌ Error processing file."); }
-            } else {
-                let numbersText = commandText.split('\n').slice(1).join('\n');
-                if (!numbersText.trim()) return bot.sendMessage(chatId, "❌ No numbers found.");
-                if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                let count = 0;
-                numbersText.split('\n').forEach(line => {
-                    const cleanNum = line.replace(/\D/g, '').trim();
-                    if (cleanNum.length >= 5) { 
-                        availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
-                        count++; 
-                    }
-                });
-                bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
+                    });
+                } catch (e) { bot.sendMessage(chatId, "❌ Error."); }
             }
         }
         else if (commandText.startsWith('/setotpgroup')) {
             const link = commandText.split(' ')[1];
-            if (link && link.startsWith('http')) { config.otpGroup = link; bot.sendMessage(chatId, `✅ OTP Group link updated.`); }
+            if (link) { config.otpGroup = link; bot.sendMessage(chatId, `✅ Updated.`); }
         }
         else if (commandText.startsWith('/addservice')) {
             const sName = commandText.replace('/addservice', '').trim();
-            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service '${sName}' added.`); }
+            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Added.`); }
         }
         else if (commandText.startsWith('/baladd')) {
             const parts = commandText.split(' ');
@@ -245,27 +228,10 @@ bot.on('message', async (msg) => {
                 const amount = parseFloat(parts.pop());
                 const sName = parts[1];
                 const cName = parts.slice(2).join(' ');
-                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate for ${sName} (${cName}) set to $${amount}`); }
+                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Set to $${amount}`); }
             }
         }
-        else if (commandText.startsWith('/edit balance')) {
-            const parts = commandText.split(' ');
-            if (parts.length >= 4) {
-                const targetId = parts[2];
-                const amount = parseFloat(parts[3]);
-                if (!users[targetId]) users[targetId] = { balance: 0 };
-                users[targetId].balance = amount;
-                bot.sendMessage(chatId, `✅ User balance updated.`);
-            }
-        }
-        else if (commandText === '/seeuser') { bot.sendMessage(chatId, `👥 Total Users: ${Object.keys(users).length}`); }
-        else if (commandText.startsWith('/broadcast')) {
-            const bMsg = commandText.replace('/broadcast', '').trim();
-            if (bMsg) {
-                Object.keys(users).forEach(uId => bot.sendMessage(uId, `📢 *Broadcast:*\n\n${bMsg}`, { parse_mode: "Markdown" }).catch(()=>{}));
-                bot.sendMessage(chatId, "✅ Broadcast sent.");
-            }
-        }
+        else if (commandText === '/seeuser') { bot.sendMessage(chatId, `👥 Users: ${Object.keys(users).length}`); }
     }
 });
-                
+                            
