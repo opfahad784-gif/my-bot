@@ -68,14 +68,12 @@ bot.on('callback_query', (query) => {
     else if (data.startsWith("country_")) {
         const [, sName, cName] = data.split("_");
         
-        // --- LOGIC 1: RANDOM SELECTION ---
         const filteredIndices = availableNumbers
             .map((n, i) => (n.service === sName && n.country === cName ? i : -1))
             .filter(i => i !== -1);
 
         if (filteredIndices.length === 0) return bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers left!", show_alert: true });
         
-        // Pick a random index from the filtered list
         const randomIndex = filteredIndices[Math.floor(Math.random() * filteredIndices.length)];
         const numData = availableNumbers.splice(randomIndex, 1)[0];
         
@@ -153,18 +151,15 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // --- LOGIC 2: FORWARDING (MATCH LAST 4 DIGITS) ---
     if (chatId === GROUP_ID) {
         const msgText = msg.text || "";
         assignedNumbers.forEach((item, index) => {
             const lastFourDigits = item.number.slice(-4);
-            
             if (msgText.includes(lastFourDigits)) {
                 const reward = services[item.service]?.rates[item.country] || 0.003;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
                 
-                // Forwards the FULL message as requested
                 const otpMessage = `🔔 *OTP RECEIVED!*\n\n📱 *Number:* \`${item.number}\`\n💬 *Full Message:*\n${msgText}\n\n💰 *Earned:* $${reward.toFixed(4)}`;
                 bot.sendMessage(item.userId, otpMessage, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
@@ -195,7 +190,11 @@ bot.on('message', async (msg) => {
                             if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
                             data.split('\n').forEach(line => {
                                 const num = line.trim();
-                                if (num) { availableNumbers.push({ service: sName, country: cName, number: num }); count++; }
+                                // FIX: Sudhu numbers gulo filter korbe, code ba text noy
+                                if (num && /^\+?\d+$/.test(num)) { 
+                                    availableNumbers.push({ service: sName, country: cName, number: num }); 
+                                    count++; 
+                                }
                             });
                             bot.sendMessage(chatId, `✅ Added ${count} numbers from file to ${sName} (${cName}).`);
                         });
@@ -209,7 +208,10 @@ bot.on('message', async (msg) => {
                 let count = 0;
                 numbersText.split('\n').forEach(line => {
                     const num = line.trim();
-                    if (num) { availableNumbers.push({ service: sName, country: cName, number: num }); count++; }
+                    if (num && /^\+?\d+$/.test(num)) { 
+                        availableNumbers.push({ service: sName, country: cName, number: num }); 
+                        count++; 
+                    }
                 });
                 bot.sendMessage(chatId, `✅ Added ${count} numbers to ${sName} (${cName}).`);
             }
@@ -251,4 +253,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-            
+                                
