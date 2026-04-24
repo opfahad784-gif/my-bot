@@ -122,8 +122,22 @@ bot.on('callback_query', async (query) => {
 
         bot.editMessageText(`✅ *Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Waiting for OTP...`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP", url: config.otpGroup }]] }
+            reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
         });
+    }
+    else if (data.startsWith("del_")) {
+        const numToDelete = data.replace("del_", "");
+        const index = assignedNumbers.findIndex(n => n.number === numToDelete && n.userId === userId);
+        
+        if (index !== -1) {
+            const recovered = assignedNumbers.splice(index, 1)[0];
+            availableNumbers.push({ service: recovered.service, country: recovered.country, number: recovered.number });
+            bot.answerCallbackQuery(query.id, { text: "✅ Number Deleted & Refunded!" });
+        } else {
+            bot.answerCallbackQuery(query.id, { text: "⚠️ Number not found or already deleted!", show_alert: true });
+        }
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+        sendMainMenu(chatId, query.from.username);
     }
     else if (data === "main_menu") {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
@@ -163,11 +177,9 @@ bot.on('message', async (msg) => {
         if (commandText.startsWith('/bulk')) {
             const header = commandText.replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country");
-            
             const sName = header[0].trim();
             const cName = header[1].trim();
             const doc = msg.document || msg.reply_to_message?.document;
-            
             if (doc) {
                 const fileLink = await bot.getFileLink(doc.file_id);
                 https.get(fileLink, (res) => {
@@ -179,35 +191,18 @@ bot.on('message', async (msg) => {
                         if (!services[sName].countries.some(c => c.toLowerCase() === cName.toLowerCase())) {
                             services[sName].countries.push(cName);
                         }
-                        
                         rawData.split(/\r?\n/).forEach(line => {
                             const cleanNum = line.replace(/\D/g, '').trim(); 
                             if (cleanNum.length >= 5) {
-                                availableNumbers.push({ 
-                                    service: sName, 
-                                    country: cName, 
-                                    number: cleanNum 
-                                }); 
+                                availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
                                 count++; 
                             }
                         });
-                        bot.sendMessage(chatId, `✅ Successfully added ${count} numbers for ${sName} (${cName}).`);
+                        bot.sendMessage(chatId, `✅ Successfully added ${count} numbers.`);
                     });
                 });
-            } else {
-                bot.sendMessage(chatId, "❌ Please attach a .txt file with the command.");
             }
-        }
-        
-        if (commandText.startsWith('/numdel')) {
-            const parts = commandText.replace('/numdel', '').trim().split(' ');
-            if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
-            const sName = parts[0].trim().toLowerCase();
-            const cName = parts[1].trim().toLowerCase();
-            const initialLength = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(item => !(item.service.toLowerCase() === sName && item.country.toLowerCase() === cName));
-            bot.sendMessage(chatId, `✅ ${initialLength - availableNumbers.length} ti number delete kora hoyeche.`);
         }
     }
 });
-            
+                
