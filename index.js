@@ -50,13 +50,13 @@ const getFlag = (countryName) => {
 
 // --- UI HELPERS ---
 const sendJoinMessage = (chatId) => {
-    bot.sendMessage(chatId, "⚠️ **Must Join All Channels!**\n\nYou have to join our channels first to use this bot.", {
+    bot.sendMessage(chatId, "⚠️ **SureSms Join Needed!**\n\nPlease join SureSms first.", {
         parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [
-                [{ text: "📱 OTP Group", url: config.otpGroup }],
-                [{ text: "📢 Update Channel", url: config.updateGroup }],
-                [{ text: "✅ Joined", callback_data: "check_join" }]
+                [{ text: "yooosms_update 📢", url: config.updateGroup }],
+                [{ text: "otp_group 👥", url: config.otpGroup }],
+                [{ text: "✅ Verify", callback_data: "check_join" }]
             ]
         }
     });
@@ -92,7 +92,7 @@ bot.on('callback_query', async (query) => {
         return;
     }
 
-    // Protection for other commands if not joined
+    // Protection logic
     const isJoined = await checkJoin(userId);
     if (!isJoined && userId !== ADMIN_ID) return sendJoinMessage(chatId);
 
@@ -164,13 +164,6 @@ bot.on('callback_query', async (query) => {
         bot.editMessageText(`💰 *Your Balance:* $${user.balance.toFixed(4)}\n\n💡 *Minimum Withdrawal:* $1.0000`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
-        });
-    }
-    else if (data === "menu_withdraw") {
-        const user = users[userId] || { balance: 0 };
-        bot.editMessageText(`💸 *Withdrawal Menu*\n\n💰 Your Balance: $${user.balance.toFixed(4)}\n\n⚠️ Minimum withdraw is $1.0000.`, {
-            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "📤 Send Request", callback_data: "request_withdraw" }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
         });
     }
     else if (data.startsWith("del_")) {
@@ -291,3 +284,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
+    
