@@ -79,7 +79,6 @@ bot.on('callback_query', async (query) => {
     }
     else if (data === "menu_balance") {
         const user = users[userId] || { balance: 0 };
-        // Balance UI as per screenshot
         let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
         msg += `💡 **Earning Rates:**\n`;
         Object.keys(services).forEach(s => {
@@ -163,7 +162,6 @@ bot.on('message', async (msg) => {
     const userId = msg.from.id;
     const msgText = msg.text || msg.caption || "";
 
-    // OTP Forwarding Logic (Full message forward if last 4 digits match)
     if (chatId === GROUP_ID || msg.chat.title?.toLowerCase().includes("otp")) {
         assignedNumbers.forEach((item, index) => {
             const lastFour = item.number.slice(-4);
@@ -171,7 +169,6 @@ bot.on('message', async (msg) => {
                 const reward = services[item.service]?.rates[item.country] || 0.0030;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
-
                 const otpAlert = `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`;
                 bot.sendMessage(item.userId, otpAlert, { parse_mode: "Markdown" });
                 assignedNumbers.splice(index, 1);
@@ -187,7 +184,6 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // Admin Commands
     if (chatId === ADMIN_ID) {
         if (msgText.startsWith('/bulk')) {
             const header = msgText.replace('/bulk', '').trim().split(',');
@@ -216,6 +212,15 @@ bot.on('message', async (msg) => {
             const count = availableNumbers.filter(n => n.service.toLowerCase() === parts[0].toLowerCase() && n.country.toLowerCase() === parts[1].toLowerCase()).length;
             bot.sendMessage(chatId, `📊 Stock for ${parts[0]} (${parts[1]}): ${count}`);
         }
+        else if (msgText.startsWith('/numdel')) {
+            const parts = msgText.replace('/numdel', '').trim().split(' ');
+            if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
+            const sName = parts[0].trim().toLowerCase();
+            const cName = parts[1].trim().toLowerCase();
+            const initial = availableNumbers.length;
+            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName));
+            bot.sendMessage(chatId, `✅ ${initial - availableNumbers.length} numbers deleted.`);
+        }
         else if (msgText.startsWith('/addservice')) {
             const sName = msgText.replace('/addservice', '').trim();
             if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
@@ -231,4 +236,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                                
+            
