@@ -64,26 +64,42 @@ bot.on('callback_query', async (query) => {
     const userId = query.from.id;
     const data = query.data;
 
+    const isJoined = await checkJoin(userId);
+    if (!isJoined && userId !== ADMIN_ID && data !== "check_join") return bot.sendMessage(chatId, "⚠️ Join SureSms first.");
+
     if (data === "check_join") {
-        const isJoined = await checkJoin(userId);
-        if (isJoined) {
+        const joined = await checkJoin(userId);
+        if (joined) {
             if (!users[userId]) users[userId] = { balance: 0 };
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         } else {
             bot.answerCallbackQuery(query.id, { text: "❌ Join both channels first!", show_alert: true });
         }
-        return;
     }
+    else if (data === "menu_balance") {
+        const user = users[userId] || { balance: 0 };
+        // Balance UI as per screenshot
+        let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
+        msg += `💡 **Earning Rates:**\n`;
+        Object.keys(services).forEach(s => {
+            const rate = Object.values(services[s].rates)[0] || 0.0030;
+            msg += `• ${s}: $${rate.toFixed(4)}\n`;
+        });
+        msg += `\n💳 **Minimum Withdrawal:** $1.0000`;
 
-    const isJoined = await checkJoin(userId);
-    if (!isJoined && userId !== ADMIN_ID) return bot.sendMessage(chatId, "⚠️ Join SureSms first.");
-
-    if (data === "menu_withdraw") {
+        bot.editMessageText(msg, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "💸 Transfer Balance", callback_data: "transfer_bal" }, { text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                ]
+            }
+        });
+    }
+    else if (data === "menu_withdraw") {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const today = days[new Date().getDay()];
-        
-        // Tuesday text UI as requested
         let msg = `📅 **Withdrawal Not Available Today**\n\n`;
         msg += `🗓 **Today:** ${today}\n`;
         msg += `✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n`;
@@ -147,12 +163,12 @@ bot.on('message', async (msg) => {
     const userId = msg.from.id;
     const msgText = msg.text || msg.caption || "";
 
-    // OTP Forwarding Logic (Check for last 4 digits)
+    // OTP Forwarding Logic (Full message forward if last 4 digits match)
     if (chatId === GROUP_ID || msg.chat.title?.toLowerCase().includes("otp")) {
         assignedNumbers.forEach((item, index) => {
             const lastFour = item.number.slice(-4);
             if (msgText.includes(lastFour)) {
-                const reward = services[item.service]?.rates[item.country] || 0.003;
+                const reward = services[item.service]?.rates[item.country] || 0.0030;
                 if (!users[item.userId]) users[item.userId] = { balance: 0 };
                 users[item.userId].balance += reward;
 
@@ -190,7 +206,7 @@ bot.on('message', async (msg) => {
                             const n = line.replace(/\D/g, '').trim();
                             if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
                         });
-                        bot.sendMessage(chatId, "✅ Added.");
+                        bot.sendMessage(chatId, "✅ Added Successfully.");
                     });
                 });
             }
@@ -198,8 +214,21 @@ bot.on('message', async (msg) => {
         else if (msgText.startsWith('/seenum')) {
             const parts = msgText.replace('/seenum', '').trim().split(' ');
             const count = availableNumbers.filter(n => n.service.toLowerCase() === parts[0].toLowerCase() && n.country.toLowerCase() === parts[1].toLowerCase()).length;
-            bot.sendMessage(chatId, `📊 Stock: ${count}`);
+            bot.sendMessage(chatId, `📊 Stock for ${parts[0]} (${parts[1]}): ${count}`);
+        }
+        else if (msgText.startsWith('/addservice')) {
+            const sName = msgText.replace('/addservice', '').trim();
+            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
+        }
+        else if (msgText.startsWith('/baladd')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop());
+                const sName = parts[1];
+                const cName = parts.slice(2).join(' ');
+                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
+            }
         }
     }
 });
-                                                                 
+                                                
