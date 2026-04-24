@@ -21,7 +21,21 @@ let availableNumbers = [];
 let assignedNumbers = []; 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
-    updateGroup: "https://t.me/SureSmsOfficial"
+    updateGroup: "https://t.me/yooosmsupdate",
+    otpUsername: "@yoosms_otp", // Username for join check
+    updateUsername: "@yooosmsupdate" // Username for join check
+};
+
+// --- JOIN CHECK HELPER ---
+const checkJoin = async (userId) => {
+    try {
+        const res1 = await bot.getChatMember(config.otpUsername, userId);
+        const res2 = await bot.getChatMember(config.updateUsername, userId);
+        const statuses = ['member', 'administrator', 'creator'];
+        return statuses.includes(res1.status) && statuses.includes(res2.status);
+    } catch (e) {
+        return false;
+    }
 };
 
 // --- FLAG HELPER ---
@@ -35,6 +49,19 @@ const getFlag = (countryName) => {
 };
 
 // --- UI HELPERS ---
+const sendJoinMessage = (chatId) => {
+    bot.sendMessage(chatId, "⚠️ **Must Join All Channels!**\n\nYou have to join our channels first to use this bot.", {
+        parse_mode: "Markdown",
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📱 OTP Group", url: config.otpGroup }],
+                [{ text: "📢 Update Channel", url: config.updateGroup }],
+                [{ text: "✅ Joined", callback_data: "check_join" }]
+            ]
+        }
+    });
+};
+
 const sendMainMenu = (chatId, username) => {
     const text = `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`;
     bot.sendMessage(chatId, text, {
@@ -48,10 +75,26 @@ const sendMainMenu = (chatId, username) => {
     });
 };
 
-bot.on('callback_query', (query) => {
+bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const userId = query.from.id;
     const data = query.data;
+
+    if (data === "check_join") {
+        const isJoined = await checkJoin(userId);
+        if (isJoined) {
+            if (!users[userId]) users[userId] = { balance: 0 };
+            bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+            sendMainMenu(chatId, query.from.username);
+        } else {
+            bot.answerCallbackQuery(query.id, { text: "❌ Please join both channels first!", show_alert: true });
+        }
+        return;
+    }
+
+    // Protection for other commands if not joined
+    const isJoined = await checkJoin(userId);
+    if (!isJoined && userId !== ADMIN_ID) return sendJoinMessage(chatId);
 
     if (!users[userId]) users[userId] = { balance: 0 };
 
@@ -130,12 +173,6 @@ bot.on('callback_query', (query) => {
             reply_markup: { inline_keyboard: [[{ text: "📤 Send Request", callback_data: "request_withdraw" }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
         });
     }
-    else if (data === "request_withdraw") {
-        const user = users[userId] || { balance: 0 };
-        if (user.balance < 1.0) return bot.answerCallbackQuery(query.id, { text: "Minimum $1.0000 required!", show_alert: true });
-        bot.sendMessage(ADMIN_ID, `🔔 *Withdraw Request!*\n👤 User: \`${userId}\`\n💰 Amount: $${user.balance.toFixed(4)}`);
-        bot.answerCallbackQuery(query.id, { text: "Request sent!", show_alert: true });
-    }
     else if (data.startsWith("del_")) {
         const num = data.replace("del_", ""); 
         const aIdx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
@@ -143,8 +180,6 @@ bot.on('callback_query', (query) => {
             const d = assignedNumbers.splice(aIdx, 1)[0];
             availableNumbers.push({ service: d.service, country: d.country, number: d.number });
             bot.answerCallbackQuery(query.id, { text: "🗑 Number deleted and refunded." });
-        } else {
-            bot.answerCallbackQuery(query.id, { text: "⚠️ Number already deleted!", show_alert: true });
         }
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
@@ -155,8 +190,14 @@ bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
 
-    if (!users[userId]) users[userId] = { balance: 0 };
-    if (msg.text === '/start') return sendMainMenu(chatId, msg.from.username);
+    if (msg.text === '/start') {
+        const isJoined = await checkJoin(userId);
+        if (!isJoined && userId !== ADMIN_ID) {
+            return sendJoinMessage(chatId);
+        }
+        if (!users[userId]) users[userId] = { balance: 0 };
+        return sendMainMenu(chatId, msg.from.username);
+    }
 
     if (chatId === GROUP_ID || msg.chat.title?.includes("otp")) {
         const msgText = msg.text || msg.caption || "";
@@ -194,7 +235,7 @@ bot.on('message', async (msg) => {
             const cName = parts[1].trim().toLowerCase();
             const initialLength = availableNumbers.length;
             availableNumbers = availableNumbers.filter(item => !(item.service.toLowerCase() === sName && item.country.toLowerCase() === cName));
-            bot.sendMessage(chatId, `✅ ${initialLength - availableNumbers.length} ti number delete kora hoyeche (${parts[0]} - ${parts[1]})`);
+            bot.sendMessage(chatId, `✅ ${initialLength - availableNumbers.length} ti number delete kora hoyeche.`);
         }
         
         else if (commandText.startsWith('/bulk')) {
@@ -250,4 +291,3 @@ bot.on('message', async (msg) => {
         }
     }
 });
-        
