@@ -36,6 +36,21 @@ const checkJoin = async (userId) => {
     } catch (e) { return false; }
 };
 
+// --- FORCE JOIN UI ---
+const sendJoinMessage = (chatId) => {
+    const msg = `🚫 **Access Denied!**\n\n⚠️ **You are NOT Verified.**\nYou must join our channels to access this bot.\n\n👇 **Join below then click 'I Have Joined':**`;
+    bot.sendMessage(chatId, msg, {
+        parse_mode: "Markdown",
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📢 Join Channel 1", url: config.updateGroup }],
+                [{ text: "📢 Join Channel 2", url: config.otpGroup }],
+                [{ text: "✅ I Have Joined", callback_data: "check_join" }]
+            ]
+        }
+    });
+};
+
 // --- FLAG HELPER ---
 const getFlag = (countryName) => {
     if (!countryName) return "🌍";
@@ -65,7 +80,11 @@ bot.on('callback_query', async (query) => {
     const data = query.data;
 
     const isJoined = await checkJoin(userId);
-    if (!isJoined && userId !== ADMIN_ID && data !== "check_join") return bot.sendMessage(chatId, "⚠️ Join SureSms first.");
+    // Updated force join trigger
+    if (!isJoined && userId !== ADMIN_ID && data !== "check_join") {
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+        return sendJoinMessage(chatId);
+    }
 
     if (data === "check_join") {
         const joined = await checkJoin(userId);
@@ -157,29 +176,43 @@ bot.on('callback_query', async (query) => {
     }
 });
 
+// --- OTP FORWARDING LOGIC ---
+const handleOtpMatch = (chatId, msgTitle, msgText) => {
+    if (chatId === GROUP_ID || (msgTitle && msgTitle.toLowerCase().includes("otp"))) {
+        const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
+        if (matchIndex !== -1) {
+            const item = assignedNumbers[matchIndex];
+            const reward = services[item.service]?.rates[item.country] || 0.0030;
+            if (!users[item.userId]) users[item.userId] = { balance: 0 };
+            users[item.userId].balance += reward;
+
+            const otpAlert = `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`;
+            bot.sendMessage(item.userId, otpAlert, { parse_mode: "Markdown" }).catch(() => {});
+            assignedNumbers.splice(matchIndex, 1);
+        }
+        return true;
+    }
+    return false;
+};
+
+bot.on('channel_post', async (msg) => {
+    handleOtpMatch(msg.chat.id, msg.chat.title, msg.text || msg.caption || "");
+});
+
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
     const msgText = msg.text || msg.caption || "";
 
-    if (chatId === GROUP_ID || msg.chat.title?.toLowerCase().includes("otp")) {
-        assignedNumbers.forEach((item, index) => {
-            const lastFour = item.number.slice(-4);
-            if (msgText.includes(lastFour)) {
-                const reward = services[item.service]?.rates[item.country] || 0.0030;
-                if (!users[item.userId]) users[item.userId] = { balance: 0 };
-                users[item.userId].balance += reward;
-                const otpAlert = `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`;
-                bot.sendMessage(item.userId, otpAlert, { parse_mode: "Markdown" });
-                assignedNumbers.splice(index, 1);
-            }
-        });
-        return;
-    }
+    if (handleOtpMatch(chatId, msg.chat.title, msgText)) return;
+
+    const userId = msg.from ? msg.from.id : null;
+    if (!userId) return;
 
     if (msgText === '/start') {
         const isJoined = await checkJoin(userId);
-        if (!isJoined && userId !== ADMIN_ID) return bot.sendMessage(chatId, "⚠️ Join SureSms first.");
+        // Updated force join trigger for start command
+        if (!isJoined && userId !== ADMIN_ID) return sendJoinMessage(chatId);
+        
         if (!users[userId]) users[userId] = { balance: 0 };
         return sendMainMenu(chatId, msg.from.username);
     }
@@ -236,4 +269,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-            
+                                                                                                               
