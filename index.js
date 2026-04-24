@@ -26,11 +26,12 @@ let config = {
 
 // --- FLAG HELPER ---
 const getFlag = (countryName) => {
+    if (!countryName) return "🌍";
     const flags = {
-        "Syria": "🇸🇾", "India": "🇮🇳", "Bangladesh": "🇧🇩", "USA": "🇺🇸", 
-        "Russia": "🇷🇺", "Indonesia": "🇮🇩", "Vietnam": "🇻🇳", "Thailand": "🇹🇭"
+        "syria": "🇸🇾", "india": "🇮🇳", "bangladesh": "🇧🇩", "usa": "🇺🇸", 
+        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭"
     };
-    return flags[countryName] || "🌍";
+    return flags[countryName.toLowerCase()] || "🌍";
 };
 
 // --- UI HELPERS ---
@@ -78,7 +79,7 @@ bot.on('callback_query', (query) => {
     else if (data.startsWith("country_")) {
         const [, sName, cName] = data.split("_");
         const filteredIndices = availableNumbers
-            .map((n, i) => (n.service === sName && n.country === cName ? i : -1))
+            .map((n, i) => (n.service.toLowerCase() === sName.toLowerCase() && n.country.toLowerCase() === cName.toLowerCase() ? i : -1))
             .filter(i => i !== -1);
 
         if (filteredIndices.length === 0) return bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers left!", show_alert: true });
@@ -177,24 +178,23 @@ bot.on('message', async (msg) => {
         const commandText = msg.text || msg.caption;
         if (!commandText) return;
 
-        // --- FIXED SEENUM ---
         if (commandText.startsWith('/seenum')) {
             const parts = commandText.replace('/seenum', '').trim().split(' ');
             if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /seenum Service Country");
-            const sName = parts[0].trim();
-            const cName = parts[1].trim();
-            const count = availableNumbers.filter(n => n.service.toLowerCase() === sName.toLowerCase() && n.country.toLowerCase() === cName.toLowerCase()).length;
-            bot.sendMessage(chatId, `📊 *Stock Check:*\n\n📱 Service: ${sName}\n🌍 Country: ${cName} ${getFlag(cName)}\n📦 Available: ${count}`, { parse_mode: "Markdown" });
+            const sName = parts[0].trim().toLowerCase();
+            const cName = parts[1].trim().toLowerCase();
+            const count = availableNumbers.filter(n => n.service.toLowerCase() === sName && n.country.toLowerCase() === cName).length;
+            bot.sendMessage(chatId, `📊 *Stock Check:*\n\n📱 Service: ${parts[0]}\n🌍 Country: ${parts[1]} ${getFlag(parts[1])}\n📦 Available: ${count}`, { parse_mode: "Markdown" });
         }
 
         if (commandText.startsWith('/numdel')) {
             const parts = commandText.replace('/numdel', '').trim().split(' ');
             if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
-            const sName = parts[0].trim();
-            const cName = parts[1].trim();
+            const sName = parts[0].trim().toLowerCase();
+            const cName = parts[1].trim().toLowerCase();
             const initialLength = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(item => !(item.service.toLowerCase() === sName.toLowerCase() && item.country.toLowerCase() === cName.toLowerCase()));
-            bot.sendMessage(chatId, `✅ ${initialLength - availableNumbers.length} ti number delete kora hoyeche (${sName} - ${cName})`);
+            availableNumbers = availableNumbers.filter(item => !(item.service.toLowerCase() === sName && item.country.toLowerCase() === cName));
+            bot.sendMessage(chatId, `✅ ${initialLength - availableNumbers.length} ti number delete kora hoyeche (${parts[0]} - ${parts[1]})`);
         }
         
         else if (commandText.startsWith('/bulk')) {
@@ -250,4 +250,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                               
+        
