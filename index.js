@@ -122,22 +122,8 @@ bot.on('callback_query', async (query) => {
 
         bot.editMessageText(`✅ *Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Waiting for OTP...`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+            reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP", url: config.otpGroup }]] }
         });
-    }
-    else if (data.startsWith("del_")) {
-        const numToDelete = data.replace("del_", "");
-        const index = assignedNumbers.findIndex(n => n.number === numToDelete && n.userId === userId);
-        
-        if (index !== -1) {
-            const recovered = assignedNumbers.splice(index, 1)[0];
-            availableNumbers.push({ service: recovered.service, country: recovered.country, number: recovered.number });
-            bot.answerCallbackQuery(query.id, { text: "✅ Number Deleted & Refunded!" });
-        } else {
-            bot.answerCallbackQuery(query.id, { text: "⚠️ Number not found or already deleted!", show_alert: true });
-        }
-        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-        sendMainMenu(chatId, query.from.username);
     }
     else if (data === "main_menu") {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
@@ -163,15 +149,15 @@ bot.on('message', async (msg) => {
         if (commandText.startsWith('/seenum')) {
             const parts = commandText.replace('/seenum', '').trim().split(' ');
             if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /seenum Service Country");
-            const sNameInput = parts[0].trim().toLowerCase();
-            const cNameInput = parts[1].trim().toLowerCase();
+            const sNameInput = parts[0].trim();
+            const cNameInput = parts[1].trim();
             
             const count = availableNumbers.filter(n => 
-                n.service.toLowerCase() === sNameInput && 
-                n.country.toLowerCase() === cNameInput
+                n.service.toLowerCase() === sNameInput.toLowerCase() && 
+                n.country.toLowerCase() === cNameInput.toLowerCase()
             ).length;
 
-            bot.sendMessage(chatId, `📊 *Stock Check:*\n\n📱 Service: ${parts[0]}\n🌍 Country: ${parts[1]} ${getFlag(parts[1])}\n📦 Available: ${count}`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, `📊 *Stock Check:*\n\n📱 Service: ${sNameInput}\n🌍 Country: ${cNameInput} ${getFlag(cNameInput)}\n📦 Available: ${count}`, { parse_mode: "Markdown" });
         }
 
         if (commandText.startsWith('/bulk')) {
@@ -183,26 +169,34 @@ bot.on('message', async (msg) => {
             if (doc) {
                 const fileLink = await bot.getFileLink(doc.file_id);
                 https.get(fileLink, (res) => {
-                    let rawData = '';
-                    res.on('data', (chunk) => { rawData += chunk; });
+                    let data = '';
+                    res.on('data', (chunk) => { data += chunk; });
                     res.on('end', () => {
                         let count = 0;
                         if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.some(c => c.toLowerCase() === cName.toLowerCase())) {
-                            services[sName].countries.push(cName);
-                        }
-                        rawData.split(/\r?\n/).forEach(line => {
+                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                        data.split('\n').forEach(line => {
                             const cleanNum = line.replace(/\D/g, '').trim(); 
                             if (cleanNum.length >= 5) {
                                 availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
                                 count++; 
                             }
                         });
-                        bot.sendMessage(chatId, `✅ Successfully added ${count} numbers.`);
+                        bot.sendMessage(chatId, `✅ Added ${count} numbers for ${sName} - ${cName}.`);
                     });
                 });
             }
         }
+        
+        if (commandText.startsWith('/numdel')) {
+            const parts = commandText.replace('/numdel', '').trim().split(' ');
+            if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
+            const sName = parts[0].trim().toLowerCase();
+            const cName = parts[1].trim().toLowerCase();
+            const initialLength = availableNumbers.length;
+            availableNumbers = availableNumbers.filter(item => !(item.service.toLowerCase() === sName && item.country.toLowerCase() === cName));
+            bot.sendMessage(chatId, `✅ ${initialLength - availableNumbers.length} ti number delete kora hoyeche.`);
+        }
     }
 });
-                
+    
