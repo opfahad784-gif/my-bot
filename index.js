@@ -149,42 +149,53 @@ bot.on('message', async (msg) => {
         if (commandText.startsWith('/seenum')) {
             const parts = commandText.replace('/seenum', '').trim().split(' ');
             if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /seenum Service Country");
-            const sNameInput = parts[0].trim();
-            const cNameInput = parts[1].trim();
+            const sNameInput = parts[0].trim().toLowerCase();
+            const cNameInput = parts[1].trim().toLowerCase();
             
             const count = availableNumbers.filter(n => 
-                n.service.toLowerCase() === sNameInput.toLowerCase() && 
-                n.country.toLowerCase() === cNameInput.toLowerCase()
+                n.service.toLowerCase() === sNameInput && 
+                n.country.toLowerCase() === cNameInput
             ).length;
 
-            bot.sendMessage(chatId, `📊 *Stock Check:*\n\n📱 Service: ${sNameInput}\n🌍 Country: ${cNameInput} ${getFlag(cNameInput)}\n📦 Available: ${count}`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, `📊 *Stock Check:*\n\n📱 Service: ${parts[0]}\n🌍 Country: ${parts[1]} ${getFlag(parts[1])}\n📦 Available: ${count}`, { parse_mode: "Markdown" });
         }
 
         if (commandText.startsWith('/bulk')) {
             const header = commandText.replace('/bulk', '').trim().split(',');
             if (header.length < 2) return bot.sendMessage(chatId, "Usage: /bulk Service, Country");
+            
             const sName = header[0].trim();
             const cName = header[1].trim();
             const doc = msg.document || msg.reply_to_message?.document;
+            
             if (doc) {
                 const fileLink = await bot.getFileLink(doc.file_id);
                 https.get(fileLink, (res) => {
-                    let data = '';
-                    res.on('data', (chunk) => { data += chunk; });
+                    let rawData = '';
+                    res.on('data', (chunk) => { rawData += chunk; });
                     res.on('end', () => {
                         let count = 0;
                         if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                        data.split('\n').forEach(line => {
+                        if (!services[sName].countries.some(c => c.toLowerCase() === cName.toLowerCase())) {
+                            services[sName].countries.push(cName);
+                        }
+                        
+                        rawData.split(/\r?\n/).forEach(line => {
                             const cleanNum = line.replace(/\D/g, '').trim(); 
                             if (cleanNum.length >= 5) {
-                                availableNumbers.push({ service: sName, country: cName, number: cleanNum }); 
+                                availableNumbers.push({ 
+                                    service: sName, 
+                                    country: cName, 
+                                    number: cleanNum 
+                                }); 
                                 count++; 
                             }
                         });
-                        bot.sendMessage(chatId, `✅ Added ${count} numbers for ${sName} - ${cName}.`);
+                        bot.sendMessage(chatId, `✅ Successfully added ${count} numbers for ${sName} (${cName}).`);
                     });
                 });
+            } else {
+                bot.sendMessage(chatId, "❌ Please attach a .txt file with the command.");
             }
         }
         
