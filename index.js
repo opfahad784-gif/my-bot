@@ -56,10 +56,13 @@ const getFlag = (countryName) => {
     if (!countryName) return "🌍";
     const flags = {
         "syria": "🇸🇾", "india": "🇮🇳", "bangladesh": "🇧🇩", "usa": "🇺🇸", 
-        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭"
+        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭", "sudan": "🇸🇩"
     };
     return flags[countryName.toLowerCase()] || "🌍";
 };
+
+// --- CLEAN STRING HELPER (Fix for emoji matching issue) ---
+const cleanStr = (str) => str ? str.replace(/[^\x00-\x7F]/g, '').trim().toLowerCase() : '';
 
 // --- MAIN MENU ---
 const sendMainMenu = (chatId, username) => {
@@ -80,7 +83,6 @@ bot.on('callback_query', async (query) => {
     const data = query.data;
 
     const isJoined = await checkJoin(userId);
-    // Updated force join trigger
     if (!isJoined && userId !== ADMIN_ID && data !== "check_join") {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         return sendJoinMessage(chatId);
@@ -210,7 +212,6 @@ bot.on('message', async (msg) => {
 
     if (msgText === '/start') {
         const isJoined = await checkJoin(userId);
-        // Updated force join trigger for start command
         if (!isJoined && userId !== ADMIN_ID) return sendJoinMessage(chatId);
         
         if (!users[userId]) users[userId] = { balance: 0 };
@@ -242,16 +243,21 @@ bot.on('message', async (msg) => {
         }
         else if (msgText.startsWith('/seenum')) {
             const parts = msgText.replace('/seenum', '').trim().split(' ');
-            const count = availableNumbers.filter(n => n.service.toLowerCase() === parts[0].toLowerCase() && n.country.toLowerCase() === parts[1].toLowerCase()).length;
-            bot.sendMessage(chatId, `📊 Stock for ${parts[0]} (${parts[1]}): ${count}`);
+            if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /seenum Service Country");
+            const sName = cleanStr(parts[0]);
+            const cName = cleanStr(parts.slice(1).join(' '));
+            
+            const count = availableNumbers.filter(n => cleanStr(n.service) === sName && cleanStr(n.country) === cName).length;
+            bot.sendMessage(chatId, `📊 **Stock Check:**\n\n📱 **Service:** ${parts[0]}\n🌍 **Country:** ${parts.slice(1).join(' ')}\n📦 **Available:** ${count}`, { parse_mode: "Markdown" });
         }
         else if (msgText.startsWith('/numdel')) {
             const parts = msgText.replace('/numdel', '').trim().split(' ');
             if (parts.length < 2) return bot.sendMessage(chatId, "Usage: /numdel Service Country");
-            const sName = parts[0].trim().toLowerCase();
-            const cName = parts[1].trim().toLowerCase();
+            const sName = cleanStr(parts[0]);
+            const cName = cleanStr(parts.slice(1).join(' '));
+            
             const initial = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName));
+            availableNumbers = availableNumbers.filter(n => !(cleanStr(n.service) === sName && cleanStr(n.country) === cName));
             bot.sendMessage(chatId, `✅ ${initial - availableNumbers.length} numbers deleted.`);
         }
         else if (msgText.startsWith('/addservice')) {
@@ -269,4 +275,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                                                                                               
+                                   
