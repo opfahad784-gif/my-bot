@@ -122,7 +122,7 @@ bot.on('callback_query', async (query) => {
         transferStates[userId] = { step: 1 };
         bot.editMessageText(`💸 *Transfer Balance - Step 1/3*\n\n💰 *Your Balance:* $${user.balance.toFixed(4)}\n\n👤 Please enter the *User ID* to transfer to:`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "cancel_transfer" }]] }
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
         });
     }
     else if (data === "confirm_transfer") {
@@ -132,7 +132,7 @@ bot.on('callback_query', async (query) => {
         const targetId = state.targetId;
         if (users[userId].balance >= amount) {
             users[userId].balance -= amount;
-            if (!users[targetId]) users[targetId] = { balance: 0, username: 'Not set' };
+            // Since we validated in step 1, we know users[targetId] exists
             users[targetId].balance += amount;
             bot.editMessageText(`✅ *Transfer Successful!*\n\n💸 Sent $${amount.toFixed(4)} to User ID: \`${targetId}\``, {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
@@ -143,6 +143,7 @@ bot.on('callback_query', async (query) => {
         delete transferStates[userId];
     }
     else if (data === "main_menu") {
+        delete transferStates[userId];
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
     }
@@ -209,25 +210,39 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `🆔 *User ID:* \`${userId}\``, { parse_mode: "Markdown" });
     }
 
-    // --- TRANSFER LOGIC ---
+    // --- FIXED TRANSFER LOGIC ---
     if (transferStates[userId]) {
         const state = transferStates[userId];
         if (state.step === 1) {
             const targetId = parseInt(msgText.trim());
-            // Logical Fix: Check if input is not a number OR it's the sender's own ID
-            if (isNaN(targetId)) return bot.sendMessage(chatId, "❌ Invalid ID! Please enter a numeric User ID.");
-            if (targetId === userId) return bot.sendMessage(chatId, "❌ You cannot transfer balance to yourself.");
             
-            state.step = 2; state.targetId = targetId;
-            bot.sendMessage(chatId, `💵 Enter amount for User ID \`${targetId}\`:`, { parse_mode: "Markdown" });
-        } else if (state.step === 2) {
+            if (isNaN(targetId)) {
+                return bot.sendMessage(chatId, "❌ **Invalid User ID.** Please enter a numeric ID.");
+            }
+            if (targetId === userId) {
+                return bot.sendMessage(chatId, "❌ **You cannot transfer balance to yourself.**");
+            }
+            if (!users[targetId]) {
+                return bot.sendMessage(chatId, "❌ **User Not Found.** This user must start the bot first to receive balance.");
+            }
+            
+            state.step = 2; 
+            state.targetId = targetId;
+            bot.sendMessage(chatId, `💵 Enter the amount to transfer to \`${targetId}\`:`, { parse_mode: "Markdown" });
+        } 
+        else if (state.step === 2) {
             const amount = parseFloat(msgText.trim());
             if (isNaN(amount) || amount <= 0 || amount > users[userId].balance) {
-                return bot.sendMessage(chatId, "❌ Invalid amount or insufficient balance.");
+                return bot.sendMessage(chatId, "❌ **Invalid amount or insufficient balance.**");
             }
-            state.step = 3; state.amount = amount;
+            state.step = 3; 
+            state.amount = amount;
             bot.sendMessage(chatId, `⚠️ Confirm transfer of $${amount.toFixed(4)} to \`${state.targetId}\`?`, {
-                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] }
+                reply_markup: { 
+                    inline_keyboard: [
+                        [{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]
+                    ] 
+                }
             });
         }
         return;
@@ -296,4 +311,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-    
+            
