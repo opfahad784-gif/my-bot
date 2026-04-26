@@ -19,6 +19,7 @@ let users = {};
 let services = {}; 
 let availableNumbers = []; 
 let assignedNumbers = []; 
+let transferStates = {}; // Add state for transfer steps
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
     updateGroup: "https://t.me/yooosmsupdate",
@@ -61,7 +62,7 @@ const getFlag = (countryName) => {
     return flags[countryName.toLowerCase()] || "🌍";
 };
 
-// --- CLEAN STRING HELPER (Fix for emoji matching issue) ---
+// --- CLEAN STRING HELPER ---
 const cleanStr = (str) => str ? str.replace(/[^\x00-\x7F]/g, '').trim().toLowerCase() : '';
 
 // --- MAIN MENU ---
@@ -91,7 +92,7 @@ bot.on('callback_query', async (query) => {
     if (data === "check_join") {
         const joined = await checkJoin(userId);
         if (joined) {
-            if (!users[userId]) users[userId] = { balance: 0 };
+            if (!users[userId]) users[userId] = { balance: 0, username: query.from.username || 'Not set' };
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         } else {
@@ -117,6 +118,52 @@ bot.on('callback_query', async (query) => {
             }
         });
     }
+    // --- TRANSFER BALANCE LOGIC ---
+    else if (data === "transfer_bal") {
+        const user = users[userId] || { balance: 0 };
+        transferStates[userId] = { step: 1 };
+        
+        let msg = `💸 *Transfer Balance - Step 1/3*\n\n`;
+        msg += `💰 *Your Balance:* $${user.balance.toFixed(4)}\n\n`;
+        msg += `👤 Please enter the *User ID* to transfer to:\n\n`;
+        msg += `💡 *Example:* \`123456789\`\n`;
+        msg += `ℹ️ *Get ID:* Use /id command to get your User ID`;
+
+        bot.editMessageText(msg, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "cancel_transfer" }]] }
+        });
+    }
+    else if (data === "cancel_transfer") {
+        delete transferStates[userId];
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+        sendMainMenu(chatId, query.from.username);
+    }
+    else if (data === "confirm_transfer") {
+        const state = transferStates[userId];
+        if (!state || state.step !== 3) return;
+        
+        const amount = state.amount;
+        const targetId = state.targetId;
+        const user = users[userId];
+        
+        if (user && user.balance >= amount) {
+            user.balance -= amount;
+            if (!users[targetId]) users[targetId] = { balance: 0, username: 'Not set' };
+            users[targetId].balance += amount;
+            
+            bot.editMessageText(`✅ *Transfer Successful!*\n\n💸 Sent $${amount.toFixed(4)} to User ID: \`${targetId}\``, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+            });
+            
+            bot.sendMessage(targetId, `💰 *Balance Received!*\n\n💸 You received $${amount.toFixed(4)} from User ID: \`${userId}\``, { parse_mode: "Markdown" }).catch(() => {});
+        } else {
+            bot.answerCallbackQuery(query.id, { text: "❌ Insufficient balance!", show_alert: true });
+        }
+        delete transferStates[userId];
+    }
+    // -------------------------------
     else if (data === "menu_withdraw") {
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const today = days[new Date().getDay()];
@@ -185,7 +232,7 @@ const handleOtpMatch = (chatId, msgTitle, msgText) => {
         if (matchIndex !== -1) {
             const item = assignedNumbers[matchIndex];
             const reward = services[item.service]?.rates[item.country] || 0.0030;
-            if (!users[item.userId]) users[item.userId] = { balance: 0 };
+            if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             users[item.userId].balance += reward;
 
             const otpAlert = `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`;
@@ -210,12 +257,81 @@ bot.on('message', async (msg) => {
     const userId = msg.from ? msg.from.id : null;
     if (!userId) return;
 
+    // Update username in DB for transfer info
+    if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'Not set' };
+    else if (msg.from.username) users[userId].username = msg.from.username;
+
+    // --- /ID COMMAND ---
+    if (msgText === '/id') {
+        const uId = msg.from.id;
+        const uUsername = msg.from.username ? '@' + msg.from.username : '@Not set';
+        const uName = msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : '');
+        const idMsg = `🆔 *Your Telegram ID*\n\n👤 *User ID:* \`${uId}\`\n👤 *Username:* ${uUsername}\n📝 *Name:* ${uName}`;
+        return bot.sendMessage(chatId, idMsg, { parse_mode: "Markdown" });
+    }
+
     if (msgText === '/start') {
+        delete transferStates[userId]; // Clear state if any
         const isJoined = await checkJoin(userId);
         if (!isJoined && userId !== ADMIN_ID) return sendJoinMessage(chatId);
-        
-        if (!users[userId]) users[userId] = { balance: 0 };
         return sendMainMenu(chatId, msg.from.username);
+    }
+
+    // --- TRANSFER BALANCE PROCESS ---
+    if (transferStates[userId]) {
+        const state = transferStates[userId];
+        const user = users[userId];
+        
+        if (msgText.startsWith('/')) {
+             delete transferStates[userId]; // Cancel on command
+        } else if (state.step === 1) {
+            const targetId = parseInt(msgText.trim());
+            if (isNaN(targetId)) return bot.sendMessage(chatId, "❌ Invalid User ID.");
+            if (targetId === userId) return bot.sendMessage(chatId, "❌ You cannot transfer to yourself.");
+            
+            state.step = 2;
+            state.targetId = targetId;
+            const targetUser = users[targetId];
+            const targetUsername = targetUser && targetUser.username !== 'Not set' ? '@' + targetUser.username : '@Not set';
+            
+            let msg2 = `💸 *Transfer Balance - Step 2/3*\n\n`;
+            msg2 += `🆔 *User ID:* \`${targetId}\`\n`;
+            msg2 += `👤 *Username:* ${targetUsername}\n`;
+            msg2 += `💰 *Your Balance:* $${user.balance.toFixed(4)}\n\n`;
+            msg2 += `💵 Please enter the *amount* to transfer:\n\n`;
+            msg2 += `💡 *Example:* \`10.50\` or \`25\``;
+            
+            return bot.sendMessage(chatId, msg2, {
+                parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "cancel_transfer" }]] }
+            });
+        } else if (state.step === 2) {
+            const amount = parseFloat(msgText.trim());
+            if (isNaN(amount) || amount <= 0) return bot.sendMessage(chatId, "❌ Invalid amount.");
+            if (amount > user.balance) return bot.sendMessage(chatId, `❌ Insufficient balance! Your balance is $${user.balance.toFixed(4)}.`);
+            
+            state.step = 3;
+            state.amount = amount;
+            const targetUser = users[state.targetId];
+            const targetUsername = targetUser && targetUser.username !== 'Not set' ? '@' + targetUser.username : '@Not set';
+            
+            let msg3 = `💸 *Transfer Balance - Step 3/3*\n\n`;
+            msg3 += `🆔 *User ID:* \`${state.targetId}\`\n`;
+            msg3 += `👤 *Username:* ${targetUsername}\n`;
+            msg3 += `💵 *Amount:* $${amount.toFixed(4)}\n\n`;
+            msg3 += `💰 *Your Balance:* $${user.balance.toFixed(4)}\n`;
+            msg3 += `📊 *After Transfer:* $${(user.balance - amount).toFixed(4)}\n\n`;
+            msg3 += `⚠️ *Please confirm the transfer:*`;
+            
+            return bot.sendMessage(chatId, msg3, {
+                parse_mode: "Markdown",
+                reply_markup: { 
+                    inline_keyboard: [
+                        [{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "cancel_transfer" }]
+                    ] 
+                }
+            });
+        }
     }
 
     if (chatId === ADMIN_ID) {
@@ -275,4 +391,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                   
+        
