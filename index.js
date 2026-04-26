@@ -19,7 +19,7 @@ let users = {};
 let services = {}; 
 let availableNumbers = []; 
 let assignedNumbers = []; 
-let transferStates = {}; // Add state for transfer steps
+let transferStates = {}; 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
     updateGroup: "https://t.me/yooosmsupdate",
@@ -121,6 +121,12 @@ bot.on('callback_query', async (query) => {
     // --- TRANSFER BALANCE LOGIC ---
     else if (data === "transfer_bal") {
         const user = users[userId] || { balance: 0 };
+        
+        // Check if balance is less than 1 dollar
+        if (user.balance < 1.0000) {
+            return bot.answerCallbackQuery(query.id, { text: "❌ Not enough money.", show_alert: true });
+        }
+
         transferStates[userId] = { step: 1 };
         
         let msg = `💸 *Transfer Balance - Step 1/3*\n\n`;
@@ -257,7 +263,6 @@ bot.on('message', async (msg) => {
     const userId = msg.from ? msg.from.id : null;
     if (!userId) return;
 
-    // Update username in DB for transfer info
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'Not set' };
     else if (msg.from.username) users[userId].username = msg.from.username;
 
@@ -271,7 +276,7 @@ bot.on('message', async (msg) => {
     }
 
     if (msgText === '/start') {
-        delete transferStates[userId]; // Clear state if any
+        delete transferStates[userId];
         const isJoined = await checkJoin(userId);
         if (!isJoined && userId !== ADMIN_ID) return sendJoinMessage(chatId);
         return sendMainMenu(chatId, msg.from.username);
@@ -283,7 +288,7 @@ bot.on('message', async (msg) => {
         const user = users[userId];
         
         if (msgText.startsWith('/')) {
-             delete transferStates[userId]; // Cancel on command
+             delete transferStates[userId]; 
         } else if (state.step === 1) {
             const targetId = parseInt(msgText.trim());
             if (isNaN(targetId)) return bot.sendMessage(chatId, "❌ Invalid User ID.");
@@ -391,4 +396,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-        
+                                                               
