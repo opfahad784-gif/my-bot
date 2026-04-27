@@ -1,26 +1,29 @@
-// --- CRITICAL DEPLOYMENT FIXES ---
+// --- DEPLOYMENT FIXES ---
 process.env.NTBA_FIX_319 = 1;
 process.env.NTBA_FIX_350 = 1;
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const https = require('https');
 
-// --- EXPRESS SERVER CONFIG ---
+// --- EXPRESS SERVER ---
 const app = express();
-app.get('/', (req, res) => res.send('Bot is active and running!'));
+app.get('/', (req, res) => res.status(200).send('Bot is Online!'));
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 
-// --- BOT CONFIG ---
+// --- CONFIG ---
 const TOKEN = '8413633586:AAE57Su-vUygN74I_vRF40G1HhlIOfsRwok'; 
 const ADMIN_ID = 7488161246;
 const GROUP_ID = -1003958220896;
 
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = new TelegramBot(TOKEN, { 
+    polling: {
+        autoStart: true,
+        params: { timeout: 10 }
+    } 
+});
 
 // --- DATABASE ---
 let users = {}; 
@@ -367,6 +370,4 @@ bot.on('message', async (msg) => {
             if (targetId) {
                 users[targetId].balance += amount;
                 bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
-                bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`);
-            } else {
-          
+                bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`)
