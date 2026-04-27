@@ -1,3 +1,6 @@
+process.env.NTBA_FIX_319 = 1;
+process.env.NTBA_FIX_350 = 1;
+
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const https = require('https');
@@ -5,7 +8,7 @@ const https = require('https');
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
 
 // --- CONFIG ---
 const TOKEN = '8413633586:AAE57Su-vUygN74I_vRF40G1HhlIOfsRwok'; 
@@ -20,8 +23,8 @@ let services = {};
 let availableNumbers = []; 
 let assignedNumbers = []; 
 let transferStates = {}; 
-let withdrawStates = {}; // Added for withdrawal steps
-let isWithdrawActive = false; // Added to control withdrawal day
+let withdrawStates = {}; 
+let isWithdrawActive = false; 
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -265,7 +268,8 @@ const handleOtpMatch = (chatId, msgTitle, msgText) => {
         const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
         if (matchIndex !== -1) {
             const item = assignedNumbers[matchIndex];
-            const reward = services[item.service]?.rates[item.country] || 0.0030;
+            // Depoly fix: replaced optional chaining (?.)
+            const reward = (services[item.service] && services[item.service].rates[item.country]) ? services[item.service].rates[item.country] : 0.0030;
             if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             users[item.userId].balance += reward;
             bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
@@ -369,8 +373,4 @@ bot.on('message', async (msg) => {
                 users[targetId].balance += amount;
                 bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
                 bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`);
-            } else {
-                bot.sendMessage(chatId, "❌ User not found.");
-            }
-        }
-        if (msgText.startsWith('/bulk
+     
