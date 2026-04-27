@@ -233,36 +233,45 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// --- UPDATED OTP MATCHING (FORWARDING EXACT MESSAGE) ---
-const handleOtpMatch = (chatId, msgTitle, msgText, originalMsg) => {
+// --- OTP MATCHING LOGIC (LAST 4 DIGITS) ---
+const handleOtpMatch = (chatId, msgTitle, msgText) => {
+    if (!msgText) return false;
+
+    // Check if the message is from the OTP group or contains OTP keyword
     if (chatId === GROUP_ID || (msgTitle && msgTitle.toLowerCase().includes("otp"))) {
-        const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
+        
+        // Loop through all currently assigned numbers
+        const matchIndex = assignedNumbers.findIndex(item => {
+            const lastFour = String(item.number).slice(-4); // নাম্বারের শেষ ৪ ডিজিট
+            return msgText.includes(lastFour); // মেসেজের মধ্যে ঐ ৪ ডিজিট আছে কি না
+        });
+
         if (matchIndex !== -1) {
             const item = assignedNumbers[matchIndex];
             const reward = services[item.service]?.rates[item.country] || 0.0030;
-            if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             
+            if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             users[item.userId].balance += reward;
 
-            // Forward the original message exactly as it is to the user
-            bot.copyMessage(item.userId, chatId, originalMsg.message_id).catch(() => {});
+            bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
             
-            // Send reward notification
-            bot.sendMessage(item.userId, `💰 **Balance Updated!**\nEarned: $${reward.toFixed(4)}\nService: ${item.service}`, { parse_mode: "Markdown" }).catch(() => {});
-            
+            // Remove number from assigned list after OTP is received
             assignedNumbers.splice(matchIndex, 1);
+            return true;
         }
-        return true;
     }
     return false;
 };
 
-bot.on('channel_post', async (msg) => handleOtpMatch(msg.chat.id, msg.chat.title, msg.text || msg.caption || "", msg));
+bot.on('channel_post', async (msg) => handleOtpMatch(msg.chat.id, msg.chat.title, msg.text || msg.caption || ""));
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const msgText = msg.text || msg.caption || "";
-    if (handleOtpMatch(chatId, msg.chat.title, msgText, msg)) return;
+    
+    // Process OTP if it's from a group or channel
+    if (handleOtpMatch(chatId, msg.chat.title, msgText)) return;
+
     const userId = msg.from ? msg.from.id : null;
     if (!userId) return;
 
@@ -378,6 +387,4 @@ bot.on('message', async (msg) => {
         else if (msgText.startsWith('/baladd')) {
             const parts = msgText.split(' ');
             if (parts.length >= 4) {
-                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
-                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
-     
+                const 
