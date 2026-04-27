@@ -21,8 +21,8 @@ let services = {};
 let availableNumbers = []; 
 let assignedNumbers = []; 
 let transferStates = {}; 
-let withdrawStates = {}; // উইথড্র স্টেট রাখার জন্য
-let isWithdrawActive = false; // ডিফল্ট অফ থাকবে
+let withdrawStates = {}; 
+let isWithdrawActive = false; 
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -210,7 +210,6 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// --- OTP MATCHING ---
 const handleOtpMatch = (chatId, msgTitle, msgText) => {
     if (chatId === GROUP_ID || (msgTitle && msgTitle.toLowerCase().includes("otp"))) {
         const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
@@ -250,7 +249,6 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // --- WITHDRAW STEP LOGIC ---
     if (withdrawStates[userId]) {
         const state = withdrawStates[userId];
         if (msgText.startsWith('/')) delete withdrawStates[userId];
@@ -269,7 +267,6 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // --- TRANSFER PROCESS ---
     if (transferStates[userId]) {
         const state = transferStates[userId], user = users[userId];
         if (msgText.startsWith('/')) delete transferStates[userId];
@@ -287,7 +284,6 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         if (msgText === '/withdrawalon') {
             isWithdrawActive = true;
@@ -300,11 +296,62 @@ bot.on('message', async (msg) => {
         if (msgText === '/seeuser') {
             let userList = `👥 **Total Users:** ${Object.keys(users).length}\n\n`;
             Object.keys(users).forEach(id => {
-                userList += `🆔 \`${id}\` - @${users[id].username}\n`;
+                userList += `🆔 \`${id}\` - @${users[id].username || 'N/A'}\n`;
             });
             return bot.sendMessage(chatId, userList, { parse_mode: "Markdown" });
         }
-        // ... (বাকি অ্যাডমিন কমান্ড যেমন /addbaluser, /bulk, /addservice আগের মতোই আছে)
+        if (msgText.startsWith('/addbaluser')) {
+            const parts = msgText.split(' ');
+            if (parts.length < 3) return bot.sendMessage(chatId, "Usage: /addbaluser @username amount");
+            
+            const targetUsername = parts[1].replace('@', '').toLowerCase();
+            const amount = parseFloat(parts[2]);
+            
+            if (isNaN(amount)) return bot.sendMessage(chatId, "❌ Invalid amount.");
+
+            const targetId = Object.keys(users).find(id => users[id].username && users[id].username.toLowerCase() === targetUsername);
+            
+            if (targetId) {
+                users[targetId].balance += amount;
+                bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
+                bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`);
+            } else {
+                bot.sendMessage(chatId, "❌ User not found in database. Make sure they have started the bot.");
+            }
+        }
+        if (msgText.startsWith('/bulk')) {
+            const header = msgText.replace('/bulk', '').trim().split(',');
+            if (header.length < 2) return;
+            const sName = header[0].trim(), cName = header[1].trim();
+            const doc = msg.document || msg.reply_to_message?.document;
+            if (doc) {
+                const fileLink = await bot.getFileLink(doc.file_id);
+                https.get(fileLink, (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => { data += chunk; });
+                    res.on('end', () => {
+                        if (!services[sName]) services[sName] = { countries: [], rates: {} };
+                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                        data.split('\n').forEach(line => {
+                            const n = line.replace(/\D/g, '').trim();
+                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
+                        });
+                        bot.sendMessage(chatId, "✅ Added Successfully.");
+                    });
+                });
+            }
+        }
+        else if (msgText.startsWith('/addservice')) {
+            const sName = msgText.replace('/addservice', '').trim();
+            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
+        }
+        else if (msgText.startsWith('/baladd')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
+            }
+        }
     }
 });
-        
+            
