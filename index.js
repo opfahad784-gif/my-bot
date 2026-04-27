@@ -20,6 +20,9 @@ let services = {};
 let availableNumbers = []; 
 let assignedNumbers = []; 
 let transferStates = {}; 
+let withdrawStates = {}; // Added for withdrawal steps
+let isWithdrawActive = false; // Added to control withdrawal day
+
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
     updateGroup: "https://t.me/yooosmsupdate",
@@ -61,8 +64,6 @@ const getFlag = (countryName) => {
     };
     return flags[countryName.toLowerCase()] || "🌍";
 };
-
-const cleanStr = (str) => str ? str.replace(/[^\x00-\x7F]/g, '').trim().toLowerCase() : '';
 
 // --- MAIN MENU ---
 const sendMainMenu = (chatId, username) => {
@@ -155,13 +156,62 @@ bot.on('callback_query', async (query) => {
         delete transferStates[userId];
     }
     else if (data === "menu_withdraw") {
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const today = days[new Date().getDay()];
-        let msg = `📅 **Withdrawal Not Available Today**\n🗓 **Today:** ${today}\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm`;
-        bot.editMessageText(msg, {
-            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", disable_web_page_preview: true,
-            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+        if (!isWithdrawActive) {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = days[new Date().getDay()];
+            let msg = `📅 **Withdrawal Not Available Today**\n🗓 **Today:** ${today}\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm`;
+            bot.editMessageText(msg, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", disable_web_page_preview: true,
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+            });
+        } else {
+            const user = users[userId] || { balance: 0 };
+            const msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n🎬 **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\n👇 **Click "Withdraw Now" to start**`;
+            bot.editMessageText(msg, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", disable_web_page_preview: true,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "💸 Withdraw Now", callback_data: "withdraw_now" }],
+                        [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                    ]
+                }
+            });
+        }
+    }
+    else if (data === "withdraw_now") {
+        const user = users[userId] || { balance: 0 };
+        if (user.balance < 1.0000) {
+            return bot.answerCallbackQuery(query.id, { text: "❌ Not enough balance! Minimum $1.00 required.", show_alert: true });
+        }
+        withdrawStates[userId] = { step: 1 };
+        bot.editMessageText(`🏦 *Withdrawal - Step 1/3*\n\n💳 Please enter your *Binance UID*:`, {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "cancel_withdraw" }]] }
         });
+    }
+    else if (data === "confirm_withdraw") {
+        const state = withdrawStates[userId];
+        if (!state || state.step !== 3) return;
+        if (users[userId].balance >= state.amount) {
+            // Deduct balance
+            users[userId].balance -= state.amount;
+            
+            // Send confirmation to user
+            bot.editMessageText(`✅ **Withdrawal request sent to admin. Please wait.**\n\n🆔 **Binance UID:** \`${state.binanceId}\`\n💵 **Amount:** $${state.amount.toFixed(4)}\n📉 **Remaining Balance:** $${users[userId].balance.toFixed(4)}`, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+            });
+
+            // Send notification to Admin
+            const adminMsg = `🚨 **NEW WITHDRAWAL REQUEST** 🚨\n\n👤 **User ID:** \`${userId}\`\n🔗 **Username:** @${users[userId].username || 'Not set'}\n🆔 **Binance UID:** \`${state.binanceId}\`\n💵 **Amount:** $${state.amount.toFixed(4)}`;
+            bot.sendMessage(ADMIN_ID, adminMsg, { parse_mode: "Markdown" });
+        }
+        delete withdrawStates[userId];
+    }
+    else if (data === "cancel_withdraw") {
+        delete withdrawStates[userId];
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+        sendMainMenu(chatId, query.from.username);
     }
     else if (data === "menu_get_number") {
         const serviceKeys = Object.keys(services);
@@ -192,6 +242,8 @@ bot.on('callback_query', async (query) => {
         });
     }
     else if (data === "main_menu") {
+        delete withdrawStates[userId];
+        delete transferStates[userId];
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
     }
@@ -242,8 +294,34 @@ bot.on('message', async (msg) => {
 
     if (msgText === '/start') {
         delete transferStates[userId];
+        delete withdrawStates[userId];
         if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
         return sendMainMenu(chatId, msg.from.username);
+    }
+
+    // --- WITHDRAW PROCESS ---
+    if (withdrawStates[userId]) {
+        const state = withdrawStates[userId];
+        if (msgText.startsWith('/')) {
+            delete withdrawStates[userId];
+        } else if (state.step === 1) {
+            state.binanceId = msgText.trim();
+            state.step = 2;
+            bot.sendMessage(chatId, `🏦 *Withdrawal - Step 2/3*\n\n🆔 **Binance UID:** \`${state.binanceId}\`\n💰 **Your Balance:** $${users[userId].balance.toFixed(4)}\n📉 **Minimum Withdrawal:** $1.0000\n\n💡 Please enter the amount you want to withdraw:`, { 
+                parse_mode: "Markdown", 
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "cancel_withdraw" }]] } 
+            });
+        } else if (state.step === 2) {
+            const amount = parseFloat(msgText.trim());
+            if (isNaN(amount) || amount < 1.0 || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Amount must be at least $1.00 and within your balance.");
+            state.amount = amount;
+            state.step = 3;
+            bot.sendMessage(chatId, `🏦 *Withdrawal - Step 3/3*\n\n🆔 **Binance UID:** \`${state.binanceId}\`\n💳 **Payment Method:** Binance\n💵 **Amount:** $${amount.toFixed(4)}\n\n❓ *Are you sure you want to withdraw?*`, {
+                parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_withdraw" }, { text: "❌ Cancel", callback_data: "cancel_withdraw" }]] }
+            });
+        }
+        return;
     }
 
     // --- TRANSFER PROCESS ---
@@ -266,6 +344,14 @@ bot.on('message', async (msg) => {
 
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
+        if (msgText === '/withdrawaldayon') {
+            isWithdrawActive = true;
+            return bot.sendMessage(chatId, "✅ **Withdrawal Day is now ON.** Users can now request withdrawals.", { parse_mode: "Markdown" });
+        }
+        if (msgText === '/withdrawaldayoff') {
+            isWithdrawActive = false;
+            return bot.sendMessage(chatId, "❌ **Withdrawal Day is now OFF.**", { parse_mode: "Markdown" });
+        }
         if (msgText === '/seeuser') {
             let userList = `👥 **Total Users:** ${Object.keys(users).length}\n\n`;
             Object.keys(users).forEach(id => {
@@ -278,7 +364,7 @@ bot.on('message', async (msg) => {
             if (parts.length < 3) return bot.sendMessage(chatId, "Usage: /addbaluser username amount");
             const targetUsername = parts[1].replace('@', '').toLowerCase();
             const amount = parseFloat(parts[2]);
-            const targetId = Object.keys(users).find(id => users[id].username.toLowerCase() === targetUsername);
+            const targetId = Object.keys(users).find(id => users[id].username && users[id].username.toLowerCase() === targetUsername);
             if (targetId) {
                 users[targetId].balance += amount;
                 bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
@@ -287,39 +373,4 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, "❌ User not found.");
             }
         }
-        if (msgText.startsWith('/bulk')) {
-            const header = msgText.replace('/bulk', '').trim().split(',');
-            if (header.length < 2) return;
-            const sName = header[0].trim(), cName = header[1].trim();
-            const doc = msg.document || msg.reply_to_message?.document;
-            if (doc) {
-                const fileLink = await bot.getFileLink(doc.file_id);
-                https.get(fileLink, (res) => {
-                    let data = '';
-                    res.on('data', (chunk) => { data += chunk; });
-                    res.on('end', () => {
-                        if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                        data.split('\n').forEach(line => {
-                            const n = line.replace(/\D/g, '').trim();
-                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
-                        });
-                        bot.sendMessage(chatId, "✅ Added Successfully.");
-                    });
-                });
-            }
-        }
-        else if (msgText.startsWith('/addservice')) {
-            const sName = msgText.replace('/addservice', '').trim();
-            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
-        }
-        else if (msgText.startsWith('/baladd')) {
-            const parts = msgText.split(' ');
-            if (parts.length >= 4) {
-                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
-                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
-            }
-        }
-    }
-});
-            
+        if (msgText.startsWith('/bulk
