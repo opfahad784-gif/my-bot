@@ -302,19 +302,19 @@ bot.on('message', async (msg) => {
         }
         if (msgText.startsWith('/addbaluser')) {
             const parts = msgText.split(' ');
-            if (parts.length < 3) return bot.sendMessage(chatId, "Usage: /addbaluser @username amount");
+            if (parts.length < 3) return bot.sendMessage(chatId, "Usage: /addbaluser ID/Username amount");
             
-            const targetUsername = parts[1].replace('@', '').toLowerCase();
+            const target = parts[1].replace('@', '').trim();
             const amount = parseFloat(parts[2]);
-            
             if (isNaN(amount)) return bot.sendMessage(chatId, "❌ Invalid amount.");
 
-            const targetId = Object.keys(users).find(id => users[id].username && users[id].username.toLowerCase() === targetUsername);
+            // Find by ID directly or search for username in users database
+            let targetId = users[target] ? target : Object.keys(users).find(id => users[id].username && users[id].username.toLowerCase() === target.toLowerCase());
             
-            if (targetId) {
+            if (targetId && users[targetId]) {
                 users[targetId].balance += amount;
-                bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
-                bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`);
+                bot.sendMessage(chatId, `✅ Added $${amount.toFixed(4)} to User: \`${target}\``);
+                bot.sendMessage(targetId, `💰 **Admin added $${amount.toFixed(4)} to your balance!**`);
             } else {
                 bot.sendMessage(chatId, "❌ User not found in database. Make sure they have started the bot.");
             }
@@ -354,4 +354,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-            
+                
