@@ -1,18 +1,21 @@
-// Deployment Fixes (Do not change)
+// --- CRITICAL DEPLOYMENT FIXES ---
 process.env.NTBA_FIX_319 = 1;
 process.env.NTBA_FIX_350 = 1;
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; 
 
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const https = require('https');
 
-// Express Server for Deployment
+// --- EXPRESS SERVER CONFIG ---
 const app = express();
-app.get('/', (req, res) => res.send('Bot is active!'));
+app.get('/', (req, res) => res.send('Bot is active and running!'));
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Bot running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
+});
 
-// --- CONFIG ---
+// --- BOT CONFIG ---
 const TOKEN = '8413633586:AAE57Su-vUygN74I_vRF40G1HhlIOfsRwok'; 
 const ADMIN_ID = 7488161246;
 const GROUP_ID = -1003958220896;
@@ -222,7 +225,7 @@ bot.on('callback_query', async (query) => {
     }
     else if (data.startsWith("service_")) {
         const sName = data.split("_")[1];
-        const countries = services[sName].countries;
+        const countries = (services[sName] && services[sName].countries) ? services[sName].countries : [];
         let buttons = countries.map(c => [{ text: `${c} ${getFlag(c)}`, callback_data: `country_${sName}_${c}` }]);
         buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
         bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
@@ -366,8 +369,4 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
                 bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`);
             } else {
-                bot.sendMessage(chatId, "❌ User not found.");
-            }
-        }
-        if (msgText.startsWith('/bulk')) {
-            cons
+          
