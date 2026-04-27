@@ -141,6 +141,30 @@ bot.on('callback_query', async (query) => {
             });
         }
     }
+    // --- ACTIVE NUMBER UI UPDATE ---
+    else if (data === "menu_active") {
+        const userNumbers = assignedNumbers.filter(n => n.userId === userId);
+        if (userNumbers.length === 0) {
+            const msg = `📊 **No Active Numbers**\n\n💡 You don't have any active numbers. Get a number to start earning!\n\n🔄 Numbers stay active until you delete them!`;
+            bot.editMessageText(msg, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📱 Get Number", callback_data: "menu_get_number" }, { text: "🔙 Back", callback_data: "main_menu" }]
+                    ]
+                }
+            });
+        } else {
+            let msg = "📱 **Your Active Numbers:**\n\n";
+            let buttons = [];
+            userNumbers.forEach(n => {
+                msg += `✅ \`${n.number}\` (${n.service})\n`;
+                buttons.push([{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
+            });
+            buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
+            bot.editMessageText(msg, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } });
+        }
+    }
     else if (data === "withdraw_now") {
         const user = users[userId] || { balance: 0 };
         if (user.balance < 1.0000) {
@@ -308,7 +332,6 @@ bot.on('message', async (msg) => {
             const amount = parseFloat(parts[2]);
             if (isNaN(amount)) return bot.sendMessage(chatId, "❌ Invalid amount.");
 
-            // Find by ID directly or search for username in users database
             let targetId = users[target] ? target : Object.keys(users).find(id => users[id].username && users[id].username.toLowerCase() === target.toLowerCase());
             
             if (targetId && users[targetId]) {
@@ -316,7 +339,7 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, `✅ Added $${amount.toFixed(4)} to User: \`${target}\``);
                 bot.sendMessage(targetId, `💰 **Admin added $${amount.toFixed(4)} to your balance!**`);
             } else {
-                bot.sendMessage(chatId, "❌ User not found in database. Make sure they have started the bot.");
+                bot.sendMessage(chatId, "❌ User not found in database.");
             }
         }
         if (msgText.startsWith('/bulk')) {
@@ -354,4 +377,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                
+                                           
