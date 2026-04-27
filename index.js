@@ -1,4 +1,4 @@
-// --- DEPLOYMENT FIXES ---
+// --- CRITICAL DEPLOYMENT FIXES (DO NOT REMOVE) ---
 process.env.NTBA_FIX_319 = 1;
 process.env.NTBA_FIX_350 = 1;
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -9,7 +9,7 @@ const https = require('https');
 
 // --- EXPRESS SERVER ---
 const app = express();
-app.get('/', (req, res) => res.status(200).send('Bot is Online!'));
+app.get('/', (req, res) => res.status(200).send('Bot Status: Active'));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 
@@ -370,4 +370,4 @@ bot.on('message', async (msg) => {
             if (targetId) {
                 users[targetId].balance += amount;
                 bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
-                bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`)
+                bot.sendMessage(targetId, `💰 **Admin added $$
