@@ -1,3 +1,4 @@
+// Deployment Fixes (Do not change)
 process.env.NTBA_FIX_319 = 1;
 process.env.NTBA_FIX_350 = 1;
 
@@ -5,10 +6,11 @@ const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const https = require('https');
 
+// Express Server for Deployment
 const app = express();
-app.get('/', (req, res) => res.send('Bot is running!'));
+app.get('/', (req, res) => res.send('Bot is active!'));
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Bot running on port ${PORT}`));
 
 // --- CONFIG ---
 const TOKEN = '8413633586:AAE57Su-vUygN74I_vRF40G1HhlIOfsRwok'; 
@@ -107,7 +109,7 @@ bot.on('callback_query', async (query) => {
         let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
         msg += `💡 **Earning Rates:**\n`;
         Object.keys(services).forEach(s => {
-            const rate = Object.values(services[s].rates)[0] || 0.0030;
+            const rate = (services[s] && services[s].rates) ? (Object.values(services[s].rates)[0] || 0.0030) : 0.0030;
             msg += `• ${s}: $${rate.toFixed(4)}\n`;
         });
         msg += `\n💳 **Minimum Withdrawal:** $1.0000`;
@@ -262,7 +264,7 @@ const handleOtpMatch = (chatId, msgTitle, msgText) => {
         const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
         if (matchIndex !== -1) {
             const item = assignedNumbers[matchIndex];
-            const reward = (services[item.service] && services[item.service].rates[item.country]) ? services[item.service].rates[item.country] : 0.0030;
+            const reward = (services[item.service] && services[item.service].rates && services[item.service].rates[item.country]) ? services[item.service].rates[item.country] : 0.0030;
             if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             users[item.userId].balance += reward;
             bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
@@ -368,6 +370,4 @@ bot.on('message', async (msg) => {
             }
         }
         if (msgText.startsWith('/bulk')) {
-            const header = msgText.replace('/bulk', '').trim().split(',');
-            if (header.length < 2) return;
-            const sName = header[0].trim(
+            cons
