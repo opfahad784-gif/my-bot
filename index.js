@@ -196,16 +196,11 @@ bot.on('callback_query', async (query) => {
         const state = withdrawStates[userId];
         if (!state || state.step !== 3) return;
         if (users[userId].balance >= state.amount) {
-            // Deduct balance
             users[userId].balance -= state.amount;
-            
-            // Send confirmation to user
             bot.editMessageText(`✅ **Withdrawal request sent to admin. Please wait.**\n\n🆔 **Binance UID:** \`${state.binanceId}\`\n💵 **Amount:** $${state.amount.toFixed(4)}\n📉 **Remaining Balance:** $${users[userId].balance.toFixed(4)}`, {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                 reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
             });
-
-            // Send notification to Admin
             const adminMsg = `🚨 **NEW WITHDRAWAL REQUEST** 🚨\n\n👤 **User ID:** \`${userId}\`\n🔗 **Username:** @${users[userId].username || 'Not set'}\n🆔 **Binance UID:** \`${state.binanceId}\`\n💵 **Amount:** $${state.amount.toFixed(4)}`;
             bot.sendMessage(ADMIN_ID, adminMsg, { parse_mode: "Markdown" });
         }
@@ -262,13 +257,11 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// --- OTP MATCHING ---
 const handleOtpMatch = (chatId, msgTitle, msgText) => {
     if (chatId === GROUP_ID || (msgTitle && msgTitle.toLowerCase().includes("otp"))) {
         const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
         if (matchIndex !== -1) {
             const item = assignedNumbers[matchIndex];
-            // Depoly fix: replaced optional chaining (?.)
             const reward = (services[item.service] && services[item.service].rates[item.country]) ? services[item.service].rates[item.country] : 0.0030;
             if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             users[item.userId].balance += reward;
@@ -303,7 +296,6 @@ bot.on('message', async (msg) => {
         return sendMainMenu(chatId, msg.from.username);
     }
 
-    // --- WITHDRAW PROCESS ---
     if (withdrawStates[userId]) {
         const state = withdrawStates[userId];
         if (msgText.startsWith('/')) {
@@ -328,7 +320,6 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // --- TRANSFER PROCESS ---
     if (transferStates[userId]) {
         const state = transferStates[userId], user = users[userId];
         if (msgText.startsWith('/')) delete transferStates[userId];
@@ -346,7 +337,6 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         if (msgText === '/withdrawaldayon') {
             isWithdrawActive = true;
@@ -373,4 +363,11 @@ bot.on('message', async (msg) => {
                 users[targetId].balance += amount;
                 bot.sendMessage(chatId, `✅ Added $${amount} to @${targetUsername}`);
                 bot.sendMessage(targetId, `💰 **Admin added $${amount} to your balance!**`);
-     
+            } else {
+                bot.sendMessage(chatId, "❌ User not found.");
+            }
+        }
+        if (msgText.startsWith('/bulk')) {
+            const header = msgText.replace('/bulk', '').trim().split(',');
+            if (header.length < 2) return;
+            const sName = header[0].trim(
