@@ -1,8 +1,3 @@
-// --- CRITICAL DEPLOYMENT FIXES (DO NOT REMOVE) ---
-process.env.NTBA_FIX_319 = 1;
-process.env.NTBA_FIX_350 = 1;
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const https = require('https');
