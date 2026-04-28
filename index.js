@@ -370,4 +370,27 @@ bot.on('message', async (msg) => {
                     res.on('data', (chunk) => { data += chunk; });
                     res.on('end', () => {
                         if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cN
+                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+
+                           data.split('\n').forEach(line => {
+                            const n = line.replace(/\D/g, '').trim();
+                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
+                        });
+                        bot.sendMessage(chatId, "✅ Added Successfully.");
+                    });
+                });
+            }
+        }
+        else if (msgText.startsWith('/addservice')) {
+            const sName = msgText.replace('/addservice', '').trim();
+            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
+        }
+        else if (msgText.startsWith('/baladd')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
+            }
+        }
+    }
+});
