@@ -216,7 +216,7 @@ bot.on('callback_query', async (query) => {
             reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
         });
     }
-    else if (data === "main_menu" || data === "cancel_transfer" || data === "cancel_transfer") {
+    else if (data === "main_menu" || data === "cancel_transfer") {
         delete transferStates[userId];
         delete withdrawStates[userId];
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
@@ -370,4 +370,4 @@ bot.on('message', async (msg) => {
         }
     }
 });
-                                                                                                          
+    
