@@ -353,8 +353,27 @@ bot.on('message', async (msg) => {
                 });
             }
         }
-        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**."); }
-        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**."); }
-    }
-});
-                        
+        else if (msgText.startsWith('/delnum')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 3) {
+                const sName = parts[1].toLowerCase(), cName = parts.slice(2).join(' ').toLowerCase();
+                const before = availableNumbers.length;
+                availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName));
+                bot.sendMessage(chatId, `🗑 Removed ${before - availableNumbers.length} numbers from ${sName} (${cName}).`);
+            }
+        }
+        else if (msgText.startsWith('/priceset')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                if (services[sName]) {
+                    services[sName].rates[cName] = amount;
+                    bot.sendMessage(chatId, `✅ Price updated for ${sName} ${cName} to $${amount.toFixed(4)}`);
+                }
+            }
+        }
+        else if (msgText.startsWith('/broadcast')) {
+            const text = msgText.replace('/broadcast', '').trim();
+            if (text) {
+                let count = 0;
+  
