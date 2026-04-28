@@ -85,7 +85,6 @@ bot.on('callback_query', async (query) => {
     const userId = query.from.id;
     const data = query.data;
 
-    // Answer callback to stop loading spinner
     bot.answerCallbackQuery(query.id).catch(() => {});
 
     const isJoined = await checkJoin(userId);
@@ -371,4 +370,4 @@ bot.on('message', async (msg) => {
                     res.on('data', (chunk) => { data += chunk; });
                     res.on('end', () => {
                         if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.inc
+                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cN
