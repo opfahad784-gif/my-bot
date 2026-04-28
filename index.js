@@ -79,6 +79,7 @@ const sendMainMenu = (chatId, username) => {
     });
 };
 
+// --- CALLBACK HANDLING ---
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const userId = query.from.id;
@@ -215,7 +216,7 @@ bot.on('callback_query', async (query) => {
             reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
         });
     }
-    else if (data === "main_menu" || data === "cancel_transfer") {
+    else if (data === "main_menu" || data === "cancel_transfer" || data === "cancel_transfer") {
         delete transferStates[userId];
         delete withdrawStates[userId];
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
@@ -233,29 +234,20 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// --- OTP MATCHING LOGIC (LAST 4 DIGITS) ---
+// --- OTP MATCHING ---
 const handleOtpMatch = (chatId, msgTitle, msgText) => {
     if (!msgText) return false;
-
-    // Check if the message is from the OTP group or contains OTP keyword
     if (chatId === GROUP_ID || (msgTitle && msgTitle.toLowerCase().includes("otp"))) {
-        
-        // Loop through all currently assigned numbers
         const matchIndex = assignedNumbers.findIndex(item => {
-            const lastFour = String(item.number).slice(-4); // নাম্বারের শেষ ৪ ডিজিট
-            return msgText.includes(lastFour); // মেসেজের মধ্যে ঐ ৪ ডিজিট আছে কি না
+            const lastFour = String(item.number).slice(-4);
+            return msgText.includes(lastFour);
         });
-
         if (matchIndex !== -1) {
             const item = assignedNumbers[matchIndex];
             const reward = services[item.service]?.rates[item.country] || 0.0030;
-            
             if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'Not set' };
             users[item.userId].balance += reward;
-
             bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💬 **Full Message:**\n${msgText}\n\n💰 **Earned:** $${reward.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
-            
-            // Remove number from assigned list after OTP is received
             assignedNumbers.splice(matchIndex, 1);
             return true;
         }
@@ -263,15 +255,13 @@ const handleOtpMatch = (chatId, msgTitle, msgText) => {
     return false;
 };
 
-bot.on('channel_post', async (msg) => handleOtpMatch(msg.chat.id, msg.chat.title, msg.text || msg.caption || ""));
+bot.on('channel_post', (msg) => handleOtpMatch(msg.chat.id, msg.chat.title, msg.text || msg.caption || ""));
 
+// --- MESSAGE HANDLING ---
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const msgText = msg.text || msg.caption || "";
-    
-    // Process OTP if it's from a group or channel
     if (handleOtpMatch(chatId, msg.chat.title, msgText)) return;
-
     const userId = msg.from ? msg.from.id : null;
     if (!userId) return;
 
@@ -325,38 +315,25 @@ bot.on('message', async (msg) => {
     }
 
     if (chatId === ADMIN_ID) {
-        if (msgText === '/withdrawalon') {
-            isWithdrawActive = true;
-            return bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**.");
-        }
-        if (msgText === '/withdrawaloff') {
-            isWithdrawActive = false;
-            return bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**.");
-        }
+        if (msgText === '/withdrawalon') { isWithdrawActive = true; return bot.sendMessage(chatId, "✅ Withdrawal system ON."); }
+        if (msgText === '/withdrawaloff') { isWithdrawActive = false; return bot.sendMessage(chatId, "❌ Withdrawal system OFF."); }
         if (msgText === '/seeuser') {
             let userList = `👥 **Total Users:** ${Object.keys(users).length}\n\n`;
-            Object.keys(users).forEach(id => {
-                userList += `🆔 \`${id}\` - @${users[id].username || 'N/A'}\n`;
-            });
+            Object.keys(users).forEach(id => { userList += `🆔 \`${id}\` - @${users[id].username || 'N/A'}\n`; });
             return bot.sendMessage(chatId, userList, { parse_mode: "Markdown" });
         }
         if (msgText.startsWith('/addbaluser')) {
             const parts = msgText.split(' ');
             if (parts.length < 3) return bot.sendMessage(chatId, "Usage: /addbaluser ID/Username amount");
-            
             const target = parts[1].replace('@', '').trim();
             const amount = parseFloat(parts[2]);
             if (isNaN(amount)) return bot.sendMessage(chatId, "❌ Invalid amount.");
-
             let targetId = users[target] ? target : Object.keys(users).find(id => users[id].username && users[id].username.toLowerCase() === target.toLowerCase());
-            
             if (targetId && users[targetId]) {
                 users[targetId].balance += amount;
                 bot.sendMessage(chatId, `✅ Added $${amount.toFixed(4)} to User: \`${target}\``);
                 bot.sendMessage(targetId, `💰 **Admin added $${amount.toFixed(4)} to your balance!**`);
-            } else {
-                bot.sendMessage(chatId, "❌ User not found in database.");
-            }
+            } else { bot.sendMessage(chatId, "❌ User not found."); }
         }
         if (msgText.startsWith('/bulk')) {
             const header = msgText.replace('/bulk', '').trim().split(',');
@@ -387,4 +364,10 @@ bot.on('message', async (msg) => {
         else if (msgText.startsWith('/baladd')) {
             const parts = msgText.split(' ');
             if (parts.length >= 4) {
-                const 
+                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
+            }
+        }
+    }
+});
+                                                                                                          
