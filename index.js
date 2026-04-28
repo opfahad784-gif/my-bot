@@ -85,6 +85,9 @@ bot.on('callback_query', async (query) => {
     const userId = query.from.id;
     const data = query.data;
 
+    // Answer callback to stop loading spinner
+    bot.answerCallbackQuery(query.id).catch(() => {});
+
     const isJoined = await checkJoin(userId);
     if (!isJoined && userId !== ADMIN_ID && data !== "check_join") {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
@@ -232,6 +235,27 @@ bot.on('callback_query', async (query) => {
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         sendMainMenu(chatId, query.from.username);
     }
+    else if (data === "transfer_bal") {
+        transferStates[userId] = { step: 1 };
+        bot.editMessageText("💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
+            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
+        });
+    }
+    else if (data === "confirm_transfer") {
+        const state = transferStates[userId];
+        if (state && users[userId].balance >= state.amount) {
+            users[userId].balance -= state.amount;
+            if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'Not set' };
+            users[state.targetId].balance += state.amount;
+            bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+            });
+            bot.sendMessage(state.targetId, `💰 **You received $${state.amount.toFixed(4)} from \`${userId}\`!**`, { parse_mode: "Markdown" });
+        }
+        delete transferStates[userId];
+    }
 });
 
 // --- OTP MATCHING ---
@@ -347,27 +371,4 @@ bot.on('message', async (msg) => {
                     res.on('data', (chunk) => { data += chunk; });
                     res.on('end', () => {
                         if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                        data.split('\n').forEach(line => {
-                            const n = line.replace(/\D/g, '').trim();
-                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
-                        });
-                        bot.sendMessage(chatId, "✅ Added Successfully.");
-                    });
-                });
-            }
-        }
-        else if (msgText.startsWith('/addservice')) {
-            const sName = msgText.replace('/addservice', '').trim();
-            if (sName && !services[sName]) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
-        }
-        else if (msgText.startsWith('/baladd')) {
-            const parts = msgText.split(' ');
-            if (parts.length >= 4) {
-                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
-                if (services[sName]) { services[sName].rates[cName] = amount; bot.sendMessage(chatId, `✅ Rate set to $${amount.toFixed(4)}`); }
-            }
-        }
-    }
-});
-                     
+                        if (!services[sName].countries.inc
