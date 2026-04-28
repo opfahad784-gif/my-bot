@@ -11,7 +11,6 @@ app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 // --- CONFIG ---
 const TOKEN = '8413633586:AAFKb3aA6XCoYx_E3ricqSoYo2wk5nb_pOU'; 
 const ADMIN_ID = 7488161246;
-const GROUP_ID = -1003958220896;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -376,4 +375,32 @@ bot.on('message', async (msg) => {
             const text = msgText.replace('/broadcast', '').trim();
             if (text) {
                 let count = 0;
-  
+                Object.keys(users).forEach(uId => {
+                    bot.sendMessage(uId, `📢 **BROADCAST**\n\n${text}`, { parse_mode: "Markdown" }).catch(() => {});
+                });
+                bot.sendMessage(chatId, `✅ Broadcast process finished.`);
+            }
+        }
+        else if (msgText.startsWith('/delnum')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 3) {
+                const sName = parts[1].toLowerCase(), cName = parts.slice(2).join(' ').toLowerCase();
+                const before = availableNumbers.length;
+                availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName));
+                bot.sendMessage(chatId, `🗑 Removed ${before - availableNumbers.length} numbers.`);
+            }
+        }
+        else if (msgText.startsWith('/priceset')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                if (services[sName]) {
+                    services[sName].rates[cName] = amount;
+                    bot.sendMessage(chatId, `✅ Price updated to $${amount.toFixed(4)}`);
+                }
+            }
+        }
+        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ ON."); }
+        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ OFF."); }
+    }
+});.
