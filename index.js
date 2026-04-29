@@ -277,6 +277,77 @@ bot.on('message', async (msg) => {
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
 
+    // --- ADMIN COMMANDS FIRST ---
+    if (chatId === ADMIN_ID) {
+        // FIXED /delnum command
+        if (msgText.startsWith('/delnum')) {
+            // Comma ba space jai thakuk thik kore nibe
+            const cleanText = msgText.replace('/delnum', '').replace(',', ' ').trim();
+            const parts = cleanText.split(/\s+/); 
+
+            if (parts.length < 2) {
+                return bot.sendMessage(chatId, "⚠️ Usage: `/delnum Service Country`\nExample: `/delnum Face-Book Myanmar`", { parse_mode: "Markdown" });
+            }
+
+            const sName = parts[0].toLowerCase();
+            const cName = parts.slice(1).join(' ').toLowerCase();
+            const initialLength = availableNumbers.length;
+
+            availableNumbers = availableNumbers.filter(n => 
+                !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName)
+            );
+
+            const deletedCount = initialLength - availableNumbers.length;
+            if (deletedCount > 0) {
+                return bot.sendMessage(chatId, `✅ Deleted **${deletedCount}** numbers for **${parts[0]}** in **${parts.slice(1).join(' ')}**.`, { parse_mode: "Markdown" });
+            } else {
+                return bot.sendMessage(chatId, `❌ No numbers found for **${parts[0]}** in **${parts.slice(1).join(' ')}**.`, { parse_mode: "Markdown" });
+            }
+        }
+        else if (msgText.startsWith('/addservice')) {
+            const sName = msgText.replace('/addservice', '').trim();
+            if (sName) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
+            return;
+        }
+        else if (msgText.startsWith('/baladd')) {
+            const parts = msgText.split(' ');
+            if (parts.length >= 4) {
+                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                if (services[sName]) { 
+                    services[sName].rates[cName] = amount; 
+                    if(!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                    bot.sendMessage(chatId, `✅ Rate set.`); 
+                }
+            }
+            return;
+        }
+        else if (msgText.startsWith('/bulk')) {
+            const header = msgText.replace('/bulk', '').trim().split(',');
+            if (header.length >= 2 && (msg.document || msg.reply_to_message?.document)) {
+                const sName = header[0].trim(), cName = header[1].trim();
+                const doc = msg.document || msg.reply_to_message.document;
+                const fileLink = await bot.getFileLink(doc.file_id);
+                https.get(fileLink, (res) => {
+                    let data = '';
+                    res.on('data', d => data += d);
+                    res.on('end', () => {
+                        if (!services[sName]) services[sName] = { countries: [], rates: {} };
+                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                        data.split('\n').forEach(line => {
+                            const n = line.replace(/\D/g, '').trim();
+                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
+                        });
+                        bot.sendMessage(chatId, "✅ Numbers Added.");
+                    });
+                });
+            }
+            return;
+        }
+        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**."); return; }
+        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**."); return; }
+    }
+
+    // --- NORMAL USER FLOW ---
     if (msgText === '/start') {
         delete transferStates[userId];
         delete withdrawStates[userId];
@@ -307,72 +378,12 @@ bot.on('message', async (msg) => {
             bot.sendMessage(chatId, `💵 Enter amount to transfer:`);
         } else if (state.step === 2) {
             const amount = parseFloat(msgText.trim());
-            if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
+                                       if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
             state.amount = amount; state.step = 3;
             bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
                 reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
             });
         }
         return;
-    }
-
-    if (chatId === ADMIN_ID) {
-        if (msgText.startsWith('/addservice')) {
-            const sName = msgText.replace('/addservice', '').trim();
-            if (sName) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
-        }
-        else if (msgText.startsWith('/baladd')) {
-            const parts = msgText.split(' ');
-            if (parts.length >= 4) {
-                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
-                if (services[sName]) { 
-                    services[sName].rates[cName] = amount; 
-                    if(!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                    bot.sendMessage(chatId, `✅ Rate set.`); 
-                }
-            }
-        }
-        // --- ADMIN DELETE BY SERVICE & COUNTRY ---
-        else if (msgText.startsWith('/delnum')) {
-            const parts = msgText.split(' ');
-            if (parts.length < 3) {
-                return bot.sendMessage(chatId, "⚠️ Usage: `/delnum ServiceName CountryName`\nExample: `/delnum Telegram India`", { parse_mode: "Markdown" });
-            }
-            const sName = parts[1].toLowerCase();
-            const cName = parts.slice(2).join(' ').toLowerCase();
-            const initialLength = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(n => 
-                !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName)
-            );
-            const deletedCount = initialLength - availableNumbers.length;
-            if (deletedCount > 0) {
-                bot.sendMessage(chatId, `✅ Successfully deleted **${deletedCount}** numbers for **${parts[1]}** in **${parts.slice(2).join(' ')}**.`, { parse_mode: "Markdown" });
-            } else {
-                bot.sendMessage(chatId, `❌ No numbers found for **${parts[1]}** in **${parts.slice(2).join(' ')}**.`, { parse_mode: "Markdown" });
-            }
-        }
-        else if (msgText.startsWith('/bulk')) {
-            const header = msgText.replace('/bulk', '').trim().split(',');
-            if (header.length >= 2 && (msg.document || msg.reply_to_message?.document)) {
-                const sName = header[0].trim(), cName = header[1].trim();
-                const doc = msg.document || msg.reply_to_message.document;
-                const fileLink = await bot.getFileLink(doc.file_id);
-                https.get(fileLink, (res) => {
-                    let data = '';
-                    res.on('data', d => data += d);
-                    res.on('end', () => {
-                        if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                        data.split('\n').forEach(line => {
-                            const n = line.replace(/\D/g, '').trim();
-                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
-                        });
-                        bot.sendMessage(chatId, "✅ Numbers Added.");
-                    });
-                });
-            }
-        }
-        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**."); }
-        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**."); }
     }
 });
