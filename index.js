@@ -332,6 +332,25 @@ bot.on('message', async (msg) => {
                 }
             }
         }
+        // --- UPDATED ADMIN DELETE BY SERVICE & COUNTRY ---
+        else if (msgText.startsWith('/delnum')) {
+            const parts = msgText.split(' ');
+            if (parts.length < 3) {
+                return bot.sendMessage(chatId, "⚠️ Usage: `/delnum ServiceName CountryName`\nExample: `/delnum Telegram India`", { parse_mode: "Markdown" });
+            }
+            const sName = parts[1].toLowerCase();
+            const cName = parts.slice(2).join(' ').toLowerCase();
+            const initialLength = availableNumbers.length;
+            availableNumbers = availableNumbers.filter(n => 
+                !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName)
+            );
+            const deletedCount = initialLength - availableNumbers.length;
+            if (deletedCount > 0) {
+                bot.sendMessage(chatId, `✅ Successfully deleted **${deletedCount}** numbers for **${parts[1]}** in **${parts.slice(2).join(' ')}**.`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, `❌ No numbers found for **${parts[1]}** in **${parts.slice(2).join(' ')}**.`, { parse_mode: "Markdown" });
+            }
+        }
         else if (msgText.startsWith('/bulk')) {
             const header = msgText.replace('/bulk', '').trim().split(',');
             if (header.length >= 2 && (msg.document || msg.reply_to_message?.document)) {
@@ -353,8 +372,4 @@ bot.on('message', async (msg) => {
                 });
             }
         }
-        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**."); }
-        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**."); }
-    }
-});
-                
+        else if (msgText === '/withdrawalon') { isWithdrawActive
