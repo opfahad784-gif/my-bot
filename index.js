@@ -332,7 +332,7 @@ bot.on('message', async (msg) => {
                 }
             }
         }
-        // --- UPDATED ADMIN DELETE BY SERVICE & COUNTRY ---
+        // --- ADMIN DELETE BY SERVICE & COUNTRY ---
         else if (msgText.startsWith('/delnum')) {
             const parts = msgText.split(' ');
             if (parts.length < 3) {
@@ -372,4 +372,7 @@ bot.on('message', async (msg) => {
                 });
             }
         }
-        else if (msgText === '/withdrawalon') { isWithdrawActive
+        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**."); }
+        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**."); }
+    }
+});
