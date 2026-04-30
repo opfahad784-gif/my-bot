@@ -22,7 +22,7 @@ let assignedNumbers = [];
 let transferStates = {}; 
 let withdrawStates = {}; 
 let isWithdrawActive = false; 
-let broadcastState = {}; 
+let broadcastState = {}; // Broadcast track korar jonno
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -31,7 +31,7 @@ let config = {
     updateUsername: "@yooosmsupdate"
 };
 
-// --- HELPERS ---
+// --- JOIN CHECK ---
 const checkJoin = async (userId) => {
     try {
         const res1 = await bot.getChatMember(config.otpUsername, userId);
@@ -41,28 +41,7 @@ const checkJoin = async (userId) => {
     } catch (e) { return false; }
 };
 
-const findUser = (input) => {
-    if (!input) return null;
-    if (users[input]) return { id: input, ...users[input] };
-    const username = input.replace('@', '').toLowerCase();
-    for (const id in users) {
-        if (users[id].username && users[id].username.toLowerCase() === username) {
-            return { id: id, ...users[id] };
-        }
-    }
-    return null;
-};
-
-const getFlag = (countryName) => {
-    if (!countryName) return "🌍";
-    const flags = {
-        "syria": "🇸🇾", "india": "🇮🇳", "bangladesh": "🇧🇩", "usa": "🇺🇸", 
-        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭", "sudan": "🇸🇩", "myanmar": "🇲🇲"
-    };
-    return flags[countryName.toLowerCase()] || "🌍";
-};
-
-// --- UI ---
+// --- FORCE JOIN UI ---
 const sendJoinMessage = (chatId) => {
     const msg = `🚫 **Access Denied!**\n\n⚠️ **You are NOT Verified.**\nYou must join our channels to access this bot.\n\n👇 **Join below then click 'I Have Joined':**`;
     bot.sendMessage(chatId, msg, {
@@ -77,6 +56,17 @@ const sendJoinMessage = (chatId) => {
     });
 };
 
+// --- FLAG HELPER ---
+const getFlag = (countryName) => {
+    if (!countryName) return "🌍";
+    const flags = {
+        "syria": "🇸🇾", "india": "🇮🇳", "bangladesh": "🇧🇩", "usa": "🇺🇸", 
+        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭", "sudan": "🇸🇩", "myanmar": "🇲🇲"
+    };
+    return flags[countryName.toLowerCase()] || "🌍";
+};
+
+// --- MAIN MENU ---
 const sendMainMenu = (chatId, username) => {
     bot.sendMessage(chatId, `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`, {
         reply_markup: {
@@ -244,8 +234,39 @@ bot.on('callback_query', async (query) => {
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
+        else if (data === "menu_active") {
+            const userNumbers = assignedNumbers.filter(n => n.userId === userId);
+            if (userNumbers.length === 0) {
+                bot.editMessageText(`📊 **No Active Numbers**`, {
+                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
+                });
+            } else {
+                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
+                buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
+                bot.editMessageText("📱 **Your Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            }
+        }
     } catch (e) { console.log("Callback Error:", e); }
 });
+
+// --- OTP MATCHING ---
+const handleOtpMatch = (chatId, msgTitle, msgText) => {
+    if (!msgText) return false;
+    const matchIndex = assignedNumbers.findIndex(item => msgText.includes(String(item.number).slice(-4)));
+    if (matchIndex !== -1) {
+        const item = assignedNumbers[matchIndex];
+        const reward = services[item.service]?.rates[item.country] || 0.0030;
+        if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
+        users[item.userId].balance += reward;
+        bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n\n🔢 **Number:** \`${item.number}\`\n💰 **Earned:** $${reward.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
+        assignedNumbers.splice(matchIndex, 1);
+        return true;
+    }
+    return false;
+};
+
+bot.on('channel_post', (msg) => handleOtpMatch(msg.chat.id, msg.chat.title, msg.text || msg.caption || ""));
 
 // --- MESSAGE HANDLING ---
 bot.on('message', async (msg) => {
@@ -255,74 +276,64 @@ bot.on('message', async (msg) => {
     if (!userId) return;
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
-    else users[userId].username = msg.from.username || 'User';
 
-    // Broadcast logic
+    // --- BROADCAST LOGIC ---
     if (chatId === ADMIN_ID && broadcastState[userId]) {
         const userList = Object.keys(users);
         let success = 0;
+        bot.sendMessage(chatId, `⏳ Sending broadcast to ${userList.length} users...`);
+        
         for (const id of userList) {
-            try { await bot.copyMessage(id, chatId, msg.message_id); success++; } catch (e) {}
+            try {
+                await bot.copyMessage(id, chatId, msg.message_id);
+                success++;
+            } catch (e) {}
         }
         delete broadcastState[userId];
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
+    // --- HELPER: FIND USER BY ID OR USERNAME ---
+    const findUser = (input) => {
+        if (!input) return null;
+        if (users[input]) return { id: input, ...users[input] };
+        const username = input.replace('@', '').toLowerCase();
+        for (const id in users) {
+            if (users[id].username && users[id].username.toLowerCase() === username) {
+                return { id: id, ...users[id] };
+            }
+        }
+        return null;
+    };
+
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
-        
-        // --- NEW: /seeuser ---
-        if (msgText.startsWith('/seeuser')) {
-            const parts = msgText.split(' ');
-            const target = parts[1];
-            if (!target) {
-                const ids = Object.keys(users);
-                let list = `📊 **Total Users:** ${ids.length}\n\n`;
-                ids.forEach((id, i) => {
-                    list += `${i+1}. @${users[id].username} | \`${id}\` | Bal: $${users[id].balance.toFixed(2)}\n`;
-                });
-                return bot.sendMessage(chatId, list.substring(0, 4000), { parse_mode: "Markdown" });
-            }
-            const u = findUser(target);
-            if (u) return bot.sendMessage(chatId, `👤 **User Info:**\n🆔 ID: \`${u.id}\`\n👤 Username: @${u.username}\n💰 Balance: $${u.balance.toFixed(4)}`, { parse_mode: "Markdown" });
-            return bot.sendMessage(chatId, "❌ User not found.");
-        }
-
-        // --- NEW: /baladduser ---
-        if (msgText.startsWith('/baladduser')) {
-            const parts = msgText.trim().split(/\s+/);
-            if (parts.length < 3) return bot.sendMessage(chatId, "⚠️ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
-            const u = findUser(parts[1]);
-            const amt = parseFloat(parts[2]);
-            if (u && !isNaN(amt)) {
-                users[u.id].balance += amt;
-                bot.sendMessage(u.id, `💰 Admin added $${amt.toFixed(4)} to your balance.`, { parse_mode: "Markdown" }).catch(() => {});
-                return bot.sendMessage(chatId, `✅ Added $${amt} to @${u.username}. New Bal: $${users[u.id].balance.toFixed(4)}`);
-            }
-            return bot.sendMessage(chatId, "❌ Failed to add balance.");
-        }
-
         if (msgText === '/broadcast') {
             broadcastState[userId] = true;
-            return bot.sendMessage(chatId, "📢 Send message for broadcast:");
+            return bot.sendMessage(chatId, "📢 Send the message (text/photo/video) you want to broadcast to all users.\n\nType /cancel to stop.", {
+                reply_markup: { inline_keyboard: [[{ text: "❌ Cancel", callback_data: "main_menu" }]] }
+            });
         }
-
+        
+        // --- FIXED: ADDED /addbaluser support (as well as /baladduser) ---
         if (msgText.startsWith('/delnum')) {
-            const params = msgText.replace('/delnum', '').replace(',', ' ').trim().split(/\s+/);
-            if (params.length < 2) return bot.sendMessage(chatId, "Usage: `/delnum Service Country`", { parse_mode: "Markdown" });
-            const s = params[0].toLowerCase(), c = params.slice(1).join(' ').toLowerCase();
-            const oldLen = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === s && n.country.toLowerCase() === c));
-            return bot.sendMessage(chatId, `🗑 Deleted ${oldLen - availableNumbers.length} numbers.`);
+            const rawParams = msgText.replace('/delnum', '').replace(',', ' ').trim();
+            const parts = rawParams.split(/\s+/);
+            if (parts.length < 2) return bot.sendMessage(chatId, "⚠️ Usage: `/delnum Service Country`", { parse_mode: "Markdown" });
+            const inputService = parts[0].toLowerCase();
+            const inputCountry = parts.slice(1).join(' ').toLowerCase();
+            const initialLength = availableNumbers.length;
+            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === inputService && n.country.toLowerCase() === inputCountry));
+            const deletedCount = initialLength - availableNumbers.length;
+            if (deletedCount > 0) return bot.sendMessage(chatId, `✅ Deleted **${deletedCount}** numbers.`, { parse_mode: "Markdown" });
+            else return bot.sendMessage(chatId, `❌ No numbers found.`, { parse_mode: "Markdown" });
         }
-
-        if (msgText.startsWith('/addservice')) {
+        else if (msgText.startsWith('/addservice')) {
             const sName = msgText.replace('/addservice', '').trim();
             if (sName) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
             return;
         }
-
-        if (msgText.startsWith('/baladd')) {
+        else if (msgText.startsWith('/baladd')) {
             const parts = msgText.split(' ');
             if (parts.length >= 4) {
                 const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
@@ -334,15 +345,15 @@ bot.on('message', async (msg) => {
             }
             return;
         }
-
-        if (msgText.startsWith('/bulk')) {
+        else if (msgText.startsWith('/bulk')) {
             const header = msgText.replace('/bulk', '').trim().split(',');
             if (header.length >= 2 && (msg.document || msg.reply_to_message?.document)) {
                 const sName = header[0].trim(), cName = header[1].trim();
                 const doc = msg.document || msg.reply_to_message.document;
                 const fileLink = await bot.getFileLink(doc.file_id);
                 https.get(fileLink, (res) => {
-                    let data = ''; res.on('data', d => data += d);
+                    let data = '';
+                    res.on('data', d => data += d);
                     res.on('end', () => {
                         if (!services[sName]) services[sName] = { countries: [], rates: {} };
                         if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
@@ -356,13 +367,49 @@ bot.on('message', async (msg) => {
             }
             return;
         }
+        else if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal system is now **ON**."); return; }
+        else if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal system is now **OFF**."); return; }
+        
+        // Command matching for balance adding (supports both spellings)
+        let isBalAdd = msgText.startsWith('/baladduser');
+        let isAddBal = msgText.startsWith('/addbaluser');
 
-        if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal ON."); return; }
-        if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal OFF."); return; }
+        if (isBalAdd || isAddBal) {
+            const cmd = isBalAdd ? '/baladduser' : '/addbaluser';
+            const rawParams = msgText.replace(cmd, '').trim();
+            const parts = rawParams.split(/\s+/);
+
+            if (parts.length < 2) {
+                return bot.sendMessage(chatId, `⚠️ Usage: \`${cmd} ID/Username Amount\``, { parse_mode: "Markdown" });
+            }
+
+            const target = parts[0];
+            const amount = parseFloat(parts[1]);
+
+            if (isNaN(amount) || amount <= 0) {
+                return bot.sendMessage(chatId, "❌ Invalid amount.");
+            }
+
+            const userData = findUser(target);
+            if (userData) {
+                users[userData.id].balance += amount;
+                
+                // Notify User
+                bot.sendMessage(userData.id, `💰 **Admin added $${amount.toFixed(4)} to your balance!**\nNew Balance: $${users[userData.id].balance.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
+                
+                // Notify Admin
+                return bot.sendMessage(chatId, `✅ Successfully added $${amount.toFixed(4)} to @${userData.username} (\`${userData.id}\`).\nNew Balance: $${users[userData.id].balance.toFixed(4)}`, { parse_mode: "Markdown" });
+            } else {
+                return bot.sendMessage(chatId, "❌ User not found in database.");
+            }
+        }
     }
 
     // --- NORMAL USER FLOW ---
     if (msgText === '/start') {
+        delete transferStates[userId];
+        delete withdrawStates[userId];
+        delete broadcastState[userId];
         if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
         return sendMainMenu(chatId, msg.from.username);
     }
@@ -397,18 +444,5 @@ bot.on('message', async (msg) => {
             });
         }
         return;
-    }
-});
-
-// OTP Matching
-bot.on('channel_post', (msg) => {
-    const text = msg.text || "";
-    const idx = assignedNumbers.findIndex(n => text.includes(String(n.number).slice(-4)));
-    if (idx !== -1) {
-        const item = assignedNumbers.splice(idx, 1)[0];
-        const reward = services[item.service]?.rates[item.country] || 0.0030;
-        if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
-        users[item.userId].balance += reward;
-        bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
     }
 });
