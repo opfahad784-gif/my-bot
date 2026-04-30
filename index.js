@@ -413,15 +413,37 @@ bot.on('message', async (msg) => {
     }
 });
 
-// OTP Matching Logic
-bot.on('channel_post', (msg) => {
-    const text = msg.text || "";
-    const idx = assignedNumbers.findIndex(n => text.includes(String(n.number).slice(-4)));
-    if (idx !== -1) {
+// --- OTP Matching Logic & Auto Forward (Last 4 Digit Match) ---
+bot.on('channel_post', async (msg) => {
+    const text = msg.text || msg.caption || "";
+    const chatId = msg.chat.id;
+    const message_id = msg.message_id;
+
+    // Number-er shesh 4 digit match kora hocche
+    const matchedNumber = assignedNumbers.find(n => {
+        const lastFour = String(n.number).slice(-4);
+        return text.includes(lastFour);
+    });
+    
+    if (matchedNumber) {
+        // Find index and remove from active list
+        const idx = assignedNumbers.findIndex(n => n.number === matchedNumber.number);
         const item = assignedNumbers.splice(idx, 1)[0];
+        
         const reward = services[item.service]?.rates[item.country] || 0.0030;
+        
         if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
+        
+        // Balance add kora hocche
         users[item.userId].balance += reward;
-        bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+
+        // User-ke notification pathano hocche
+        await bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}\n\n👇 **Forwarded Message:**`, { parse_mode: "Markdown" });
+
+        // Message-ti user-ke forward kora hocche
+        bot.forwardMessage(item.userId, chatId, message_id).catch(e => {
+            console.log("Forward Error:", e);
+            bot.sendMessage(item.userId, `📝 **Message Text:**\n${text}`);
+        });
     }
 });
