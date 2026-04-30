@@ -271,37 +271,38 @@ bot.on('channel_post', (msg) => handleOtpMatch(msg.chat.id, msg.chat.title, msg.
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const msgText = msg.text || "";
-    if (handleOtpMatch(chatId, msg.chat.title, msgText)) return;
     const userId = msg.from?.id;
     if (!userId) return;
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
 
-    // --- ADMIN COMMANDS FIRST ---
+    // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
-        // FIXED /delnum command
         if (msgText.startsWith('/delnum')) {
-            // Comma ba space jai thakuk thik kore nibe
-            const cleanText = msgText.replace('/delnum', '').replace(',', ' ').trim();
-            const parts = cleanText.split(/\s+/); 
+            // Service ar Country name theke comma ar extra space bad deya hocche
+            const rawParams = msgText.replace('/delnum', '').replace(',', ' ').trim();
+            const parts = rawParams.split(/\s+/);
 
             if (parts.length < 2) {
                 return bot.sendMessage(chatId, "⚠️ Usage: `/delnum Service Country`\nExample: `/delnum Face-Book Myanmar`", { parse_mode: "Markdown" });
             }
 
-            const sName = parts[0].toLowerCase();
-            const cName = parts.slice(1).join(' ').toLowerCase();
-            const initialLength = availableNumbers.length;
+            const inputService = parts[0].toLowerCase();
+            const inputCountry = parts.slice(1).join(' ').toLowerCase();
 
-            availableNumbers = availableNumbers.filter(n => 
-                !(n.service.toLowerCase() === sName && n.country.toLowerCase() === cName)
-            );
+            const initialLength = availableNumbers.length;
+            // Precise matching logic
+            availableNumbers = availableNumbers.filter(n => {
+                const dbService = n.service.toLowerCase();
+                const dbCountry = n.country.toLowerCase();
+                return !(dbService === inputService && dbCountry === inputCountry);
+            });
 
             const deletedCount = initialLength - availableNumbers.length;
             if (deletedCount > 0) {
-                return bot.sendMessage(chatId, `✅ Deleted **${deletedCount}** numbers for **${parts[0]}** in **${parts.slice(1).join(' ')}**.`, { parse_mode: "Markdown" });
+                return bot.sendMessage(chatId, `✅ Successfully deleted **${deletedCount}** numbers for **${parts[0]}** in **${parts.slice(1).join(' ')}**.`, { parse_mode: "Markdown" });
             } else {
-                return bot.sendMessage(chatId, `❌ No numbers found for **${parts[0]}** in **${parts.slice(1).join(' ')}**.`, { parse_mode: "Markdown" });
+                return bot.sendMessage(chatId, `❌ No numbers found for **${parts[0]}** in **${parts.slice(1).join(' ')}**. (Check spelling!)`, { parse_mode: "Markdown" });
             }
         }
         else if (msgText.startsWith('/addservice')) {
@@ -375,15 +376,4 @@ bot.on('message', async (msg) => {
         const state = transferStates[userId];
         if (state.step === 1) {
             state.targetId = parseInt(msgText.trim()); state.step = 2;
-            bot.sendMessage(chatId, `💵 Enter amount to transfer:`);
-        } else if (state.step === 2) {
-            const amount = parseFloat(msgText.trim());
-                                       if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
-            state.amount = amount; state.step = 3;
-            bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
-                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
-            });
-        }
-        return;
-    }
-});
+            bot.sendMessage(chatId, `💵 Enter amou
