@@ -415,37 +415,39 @@ bot.on('message', async (msg) => {
 
 // --- OTP Matching Logic & Auto Forward (Last 4 Digit Match) ---
 bot.on('channel_post', async (msg) => {
-    const text = msg.text || msg.caption || ""; // Message ba image caption check korbe
-    const chatId = msg.chat.id;
-    const message_id = msg.message_id;
+    // Message er text ba image caption check korbe
+    const text = msg.text || msg.caption || ""; 
+    const channelId = msg.chat.id;
+    const messageId = msg.message_id;
 
-    // Assigned numbers list-e check kora hocche (Last 4 digit matching)
-    const matchedNumber = assignedNumbers.find(n => {
+    if (!text) return;
+
+    // Assigned numbers list theke last 4 digit match kora hocche
+    const matchedIdx = assignedNumbers.findIndex(n => {
         const lastFour = String(n.number).slice(-4);
         return text.includes(lastFour);
     });
     
-    if (matchedNumber) {
-        // Active list theke index khuje ber kore remove kora hocche
-        const idx = assignedNumbers.findIndex(n => n.number === matchedNumber.number);
-        const item = assignedNumbers.splice(idx, 1)[0];
+    if (matchedIdx !== -1) {
+        // Active list theke remove kora hocche
+        const item = assignedNumbers.splice(matchedIdx, 1)[0];
         
-        // Service rate onusare reward calculate kora hocche
+        // Reward logic (Rates theke neya hocche)
         const reward = services[item.service]?.rates[item.country] || 0.0030;
         
         if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
         
-        // User-er balance update kora hocche
+        // User balance update
         users[item.userId].balance += reward;
 
-        // User-ke notification pathano hocche
-        await bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}\n\n👇 **Forwarded Message:**`, { parse_mode: "Markdown" });
+        // Prothome notify kora
+        await bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}\n\n👇 **Forwarded OTP Message:**`, { parse_mode: "Markdown" });
 
-        // Original message-ti hoboho forward kora hocche
-        bot.forwardMessage(item.userId, chatId, message_id).catch(e => {
+        // Original message hoboho forward kora
+        bot.forwardMessage(item.userId, channelId, messageId).catch(e => {
             console.log("Forward Error:", e);
-            // Error hole backup hisebe text pathano hobe
-            bot.sendMessage(item.userId, `📝 **Message Text:**\n${text}`);
+            // Error hole backup text pathiye deya
+            bot.sendMessage(item.userId, `📝 **OTP Text:**\n${text}`);
         });
     }
 });
