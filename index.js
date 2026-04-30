@@ -376,4 +376,15 @@ bot.on('message', async (msg) => {
         const state = transferStates[userId];
         if (state.step === 1) {
             state.targetId = parseInt(msgText.trim()); state.step = 2;
-            bot.sendMessage(chatId, `💵 Enter amou
+            bot.sendMessage(chatId, `💵 Enter amount to transfer:`);
+        } else if (state.step === 2) {
+            const amount = parseFloat(msgText.trim());
+            if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
+            state.amount = amount; state.step = 3;
+            bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
+                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
+            });
+        }
+        return;
+    }
+});
