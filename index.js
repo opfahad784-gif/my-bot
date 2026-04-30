@@ -11,7 +11,6 @@ app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 // --- CONFIG ---
 const TOKEN = '8413633586:AAFKb3aA6XCoYx_E3ricqSoYo2wk5nb_pOU'; 
 const ADMIN_ID = 7488161246;
-const GROUP_ID = -1003958220896;
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -23,6 +22,7 @@ let assignedNumbers = [];
 let transferStates = {}; 
 let withdrawStates = {}; 
 let isWithdrawActive = false; 
+let broadcastState = {}; // Broadcast track korar jonno
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -61,7 +61,7 @@ const getFlag = (countryName) => {
     if (!countryName) return "🌍";
     const flags = {
         "syria": "🇸🇾", "india": "🇮🇳", "bangladesh": "🇧🇩", "usa": "🇺🇸", 
-        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭", "sudan": "🇸🇩"
+        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭", "sudan": "🇸🇩", "myanmar": "🇲🇲"
     };
     return flags[countryName.toLowerCase()] || "🌍";
 };
@@ -108,6 +108,7 @@ bot.on('callback_query', async (query) => {
         if (data === "main_menu" || data === "cancel_transfer") {
             delete transferStates[userId];
             delete withdrawStates[userId];
+            delete broadcastState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
@@ -276,34 +277,41 @@ bot.on('message', async (msg) => {
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
 
+    // --- BROADCAST LOGIC ---
+    if (chatId === ADMIN_ID && broadcastState[userId]) {
+        const userList = Object.keys(users);
+        let success = 0;
+        bot.sendMessage(chatId, `⏳ Sending broadcast to ${userList.length} users...`);
+        
+        for (const id of userList) {
+            try {
+                await bot.copyMessage(id, chatId, msg.message_id);
+                success++;
+            } catch (e) {}
+        }
+        delete broadcastState[userId];
+        return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
+    }
+
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
+        if (msgText === '/broadcast') {
+            broadcastState[userId] = true;
+            return bot.sendMessage(chatId, "📢 Send the message (text/photo/video) you want to broadcast to all users.\n\nType /cancel to stop.", {
+                reply_markup: { inline_keyboard: [[{ text: "❌ Cancel", callback_data: "main_menu" }]] }
+            });
+        }
         if (msgText.startsWith('/delnum')) {
-            // Service ar Country name theke comma ar extra space bad deya hocche
             const rawParams = msgText.replace('/delnum', '').replace(',', ' ').trim();
             const parts = rawParams.split(/\s+/);
-
-            if (parts.length < 2) {
-                return bot.sendMessage(chatId, "⚠️ Usage: `/delnum Service Country`\nExample: `/delnum Face-Book Myanmar`", { parse_mode: "Markdown" });
-            }
-
+            if (parts.length < 2) return bot.sendMessage(chatId, "⚠️ Usage: `/delnum Service Country`", { parse_mode: "Markdown" });
             const inputService = parts[0].toLowerCase();
             const inputCountry = parts.slice(1).join(' ').toLowerCase();
-
             const initialLength = availableNumbers.length;
-            // Precise matching logic
-            availableNumbers = availableNumbers.filter(n => {
-                const dbService = n.service.toLowerCase();
-                const dbCountry = n.country.toLowerCase();
-                return !(dbService === inputService && dbCountry === inputCountry);
-            });
-
+            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === inputService && n.country.toLowerCase() === inputCountry));
             const deletedCount = initialLength - availableNumbers.length;
-            if (deletedCount > 0) {
-                return bot.sendMessage(chatId, `✅ Successfully deleted **${deletedCount}** numbers for **${parts[0]}** in **${parts.slice(1).join(' ')}**.`, { parse_mode: "Markdown" });
-            } else {
-                return bot.sendMessage(chatId, `❌ No numbers found for **${parts[0]}** in **${parts.slice(1).join(' ')}**. (Check spelling!)`, { parse_mode: "Markdown" });
-            }
+            if (deletedCount > 0) return bot.sendMessage(chatId, `✅ Deleted **${deletedCount}** numbers.`, { parse_mode: "Markdown" });
+            else return bot.sendMessage(chatId, `❌ No numbers found.`, { parse_mode: "Markdown" });
         }
         else if (msgText.startsWith('/addservice')) {
             const sName = msgText.replace('/addservice', '').trim();
@@ -352,6 +360,7 @@ bot.on('message', async (msg) => {
     if (msgText === '/start') {
         delete transferStates[userId];
         delete withdrawStates[userId];
+        delete broadcastState[userId];
         if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
         return sendMainMenu(chatId, msg.from.username);
     }
@@ -364,22 +373,6 @@ bot.on('message', async (msg) => {
         } else if (state.step === 2) {
             const amt = parseFloat(msgText);
             if (isNaN(amt) || amt < 1.0 || amt > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
-            state.amount = amt; state.step = 3;
-            bot.sendMessage(chatId, `⚠️ Confirm withdraw $${amt.toFixed(4)}?`, { 
-                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_withdraw" }, { text: "❌ No", callback_data: "main_menu" }]] } 
-            });
-        }
-        return;
-    }
-
-    if (transferStates[userId]) {
-        const state = transferStates[userId];
-        if (state.step === 1) {
-            state.targetId = parseInt(msgText.trim()); state.step = 2;
-            bot.sendMessage(chatId, `💵 Enter amount to transfer:`);
-        } else if (state.step === 2) {
-            const amount = parseFloat(msgText.trim());
-            if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
             state.amount = amount; state.step = 3;
             bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
                 reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
