@@ -54,36 +54,36 @@ const findUser = (input) => {
 };
 
 const getFlag = (countryName) => {
-    if (!countryName) return "ðŸŒ";
+    if (!countryName) return "🌍";
     const flags = {
-        "syria": "ðŸ‡¸ðŸ‡¾", "india": "ðŸ‡®ðŸ‡³", "bangladesh": "ðŸ‡§ðŸ‡©", "usa": "ðŸ‡ºðŸ‡¸", 
-        "russia": "ðŸ‡·ðŸ‡º", "indonesia": "ðŸ‡®ðŸ‡©", "vietnam": "ðŸ‡»ðŸ‡³", "thailand": "ðŸ‡¹ðŸ‡­", "sudan": "ðŸ‡¸ðŸ‡©", "myanmar": "ðŸ‡²ðŸ‡²"
+        "syria": "🇸🇾", "india": "🇮🇳", "bangladesh": "🇧🇩", "usa": "🇺🇸", 
+        "russia": "🇷🇺", "indonesia": "🇮🇩", "vietnam": "🇻🇳", "thailand": "🇹🇭", "sudan": "🇸🇩", "myanmar": "🇲🇲"
     };
-    return flags[countryName.toLowerCase()] || "ðŸŒ";
+    return flags[countryName.toLowerCase()] || "🌍";
 };
 
 // --- UI ---
 const sendJoinMessage = (chatId) => {
-    const msg = `ðŸš« **Access Denied!**\n\nâš ï¸ **You are NOT Verified.**\nYou must join our channels to access this bot.\n\nðŸ‘‡ **Join below then click 'I Have Joined':**`;
+    const msg = `🚫 **Access Denied!**\n\n⚠️ **You are NOT Verified.**\nYou must join our channels to access this bot.\n\n👇 **Join below then click 'I Have Joined':**`;
     bot.sendMessage(chatId, msg, {
         parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [
-                [{ text: "ðŸ“¢ Join Channel 1", url: config.updateGroup }],
-                [{ text: "ðŸ“¢ Join Channel 2", url: config.otpGroup }],
-                [{ text: "âœ… I Have Joined", callback_data: "check_join" }]
+                [{ text: "📢 Join Channel 1", url: config.updateGroup }],
+                [{ text: "📢 Join Channel 2", url: config.otpGroup }],
+                [{ text: "✅ I Have Joined", callback_data: "check_join" }]
             ]
         }
     });
 };
 
 const sendMainMenu = (chatId, username) => {
-    bot.sendMessage(chatId, `Welcome! ðŸ‘‹ @${username || 'User'}\n\nClick the Get Number button to receive your number!`, {
+    bot.sendMessage(chatId, `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`, {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "ðŸ“± Get Number", callback_data: "menu_get_number" }, { text: "ðŸ’° Balance", callback_data: "menu_balance" }],
-                [{ text: "ðŸ“± Active Number", callback_data: "menu_active" }, { text: "ðŸ’¸ Withdraw", callback_data: "menu_withdraw" }],
-                [{ text: "ðŸ¤– Bot Update Channel", url: config.updateGroup }]
+                [{ text: "📱 Get Number", callback_data: "menu_get_number" }, { text: "💰 Balance", callback_data: "menu_balance" }],
+                [{ text: "📱 Active Number", callback_data: "menu_active" }, { text: "💸 Withdraw", callback_data: "menu_withdraw" }],
+                [{ text: "🤖 Bot Update Channel", url: config.updateGroup }]
             ]
         }
     });
@@ -105,7 +105,7 @@ bot.on('callback_query', async (query) => {
                 await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
                 return sendMainMenu(chatId, query.from.username);
             } else {
-                return bot.answerCallbackQuery(query.id, { text: "âŒ Join both channels first!", show_alert: true });
+                return bot.answerCallbackQuery(query.id, { text: "❌ Join both channels first!", show_alert: true });
             }
         }
 
@@ -124,19 +124,19 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
-            let msg = `ðŸ’° **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
-            msg += `ðŸ’¡ **Earning Rates:**\n`;
+            let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
+            msg += `💡 **Earning Rates:**\n`;
             Object.keys(services).forEach(s => {
                 const rate = Object.values(services[s].rates)[0] || 0.0030;
-                msg += `â€¢ ${s}: $${rate.toFixed(4)}\n`;
+                msg += `• ${s}: $${rate.toFixed(4)}\n`;
             });
-            msg += `\nðŸ’³ **Minimum Withdrawal:** $1.0000`;
+            msg += `\n💳 **Minimum Withdrawal:** $1.0000`;
 
             bot.editMessageText(msg, {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "ðŸ’¸ Transfer Balance", callback_data: "transfer_bal" }, { text: "ðŸ”™ Back to Menu", callback_data: "main_menu" }]
+                        [{ text: "💸 Transfer Balance", callback_data: "transfer_bal" }, { text: "🔙 Back to Menu", callback_data: "main_menu" }]
                     ]
                 }
             });
@@ -145,19 +145,19 @@ bot.on('callback_query', async (query) => {
             if (!isWithdrawActive) {
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const today = days[new Date().getDay()];
-                let msg = `ðŸ“… **Withdrawal Not Available Today**\nðŸ—“ **Today:** ${today}\nâœ… **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\nðŸŽ¬ **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\nðŸ’¡ You can only request withdrawals on Tuesday between 12am and 12pm`;
+                let msg = `📅 **Withdrawal Not Available Today**\n🗓 **Today:** ${today}\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm`;
                 bot.editMessageText(msg, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", disable_web_page_preview: true,
-                    reply_markup: { inline_keyboard: [[{ text: "ðŸ”™ Back to Menu", callback_data: "main_menu" }]] }
+                    reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
                 });
             } else {
                 const user = users[userId] || { balance: 0 };
-                bot.editMessageText(`ðŸ’° **Your Balance:** $${user.balance.toFixed(4)}\nðŸ“‰ **Minimum:** $1.0000\n\nðŸ‘‡ **Click "Withdraw Now" to start:**`, {
+                bot.editMessageText(`💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n\n👇 **Click "Withdraw Now" to start:**`, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "ðŸ’¸ Withdraw Now", callback_data: "withdraw_now" }],
-                            [{ text: "ðŸ”™ Back to Menu", callback_data: "main_menu" }]
+                            [{ text: "💸 Withdraw Now", callback_data: "withdraw_now" }],
+                            [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
                         ]
                     }
                 });
@@ -167,45 +167,45 @@ bot.on('callback_query', async (query) => {
             const serviceKeys = Object.keys(services);
             if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services available!", show_alert: true });
             let buttons = serviceKeys.map(s => [{ text: s, callback_data: `service_${s}` }]);
-            buttons.push([{ text: "ðŸ  Main Menu", callback_data: "main_menu" }]);
-            bot.editMessageText("ðŸ›  Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
+            bot.editMessageText("🛠 Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
         }
         else if (data.startsWith("service_")) {
             const sName = data.split("_")[1];
             const countries = services[sName]?.countries || [];
             if (countries.length === 0) return bot.answerCallbackQuery(query.id, { text: "No countries available!", show_alert: true });
             let buttons = countries.map(c => [{ text: `${c} ${getFlag(c)}`, callback_data: `country_${sName}_${c}` }]);
-            buttons.push([{ text: "ðŸ”™ Back", callback_data: "menu_get_number" }]);
-            bot.editMessageText(`ðŸŒ Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
+            bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
         }
         else if (data.startsWith("country_")) {
             const [, sName, cName] = data.split("_");
             const filteredIndices = availableNumbers
                 .map((n, i) => (n.service.toLowerCase() === sName.toLowerCase() && n.country.toLowerCase() === cName.toLowerCase() ? i : -1))
                 .filter(i => i !== -1);
-            if (filteredIndices.length === 0) return bot.answerCallbackQuery(query.id, { text: "âš ï¸ No numbers available!", show_alert: true });
+            if (filteredIndices.length === 0) return bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available!", show_alert: true });
             const randomIndex = filteredIndices[Math.floor(Math.random() * filteredIndices.length)];
             const numData = availableNumbers.splice(randomIndex, 1)[0];
             assignedNumbers.push({ ...numData, userId });
-            bot.editMessageText(`âœ… *Number Assigned!*\n\nðŸ“± *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\nâ³ Wait, Stay here... OTP Coming Soon!`, {
+            bot.editMessageText(`✅ *Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Wait, Stay here... OTP Coming Soon!`, {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "ðŸ—‘ Delete Number", callback_data: `del_${numData.number}` }], [{ text: "ðŸ“± OTP GROUP HERE", url: config.otpGroup }]] }
+                reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
             });
         }
         else if (data === "transfer_bal") {
             transferStates[userId] = { step: 1 };
-            bot.editMessageText("ðŸ’¸ **Transfer Balance**\n\nðŸ†” Please enter the **Recipient ID**:", {
+            bot.editMessageText("💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "ðŸ”™ Cancel", callback_data: "main_menu" }]] }
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
             });
         }
         else if (data === "withdraw_now") {
             const user = users[userId] || { balance: 0 };
-            if (user.balance < 1.0000) return bot.answerCallbackQuery(query.id, { text: "âŒ Not enough balance!", show_alert: true });
+            if (user.balance < 1.0000) return bot.answerCallbackQuery(query.id, { text: "❌ Not enough balance!", show_alert: true });
             withdrawStates[userId] = { step: 1 };
-            bot.editMessageText(`ðŸ¦ *Withdrawal*\n\nðŸ’³ Please enter your *Binance UID*:`, {
+            bot.editMessageText(`🏦 *Withdrawal*\n\n💳 Please enter your *Binance UID*:`, {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "ðŸ”™ Cancel", callback_data: "main_menu" }]] }
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
             });
         }
         else if (data === "confirm_transfer") {
@@ -214,11 +214,11 @@ bot.on('callback_query', async (query) => {
                 users[userId].balance -= state.amount;
                 if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User' };
                 users[state.targetId].balance += state.amount;
-                bot.editMessageText(`âœ… **Transfer Successful!**\n\nðŸ’µ Amount: $${state.amount.toFixed(4)}\nðŸ†” To: \`${state.targetId}\``, {
+                bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [[{ text: "ðŸ  Main Menu", callback_data: "main_menu" }]] }
+                    reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
                 });
-                bot.sendMessage(state.targetId, `ðŸ’° **You received $${state.amount.toFixed(4)} from \`${userId}\`!**`, { parse_mode: "Markdown" }).catch(() => {});
+                bot.sendMessage(state.targetId, `💰 **You received $${state.amount.toFixed(4)} from \`${userId}\`!**`, { parse_mode: "Markdown" }).catch(() => {});
             }
             delete transferStates[userId];
         }
@@ -226,11 +226,11 @@ bot.on('callback_query', async (query) => {
             const state = withdrawStates[userId];
             if (state && users[userId].balance >= state.amount) {
                 users[userId].balance -= state.amount;
-                bot.editMessageText(`âœ… **Request Sent!**\n\nðŸ’µ Amount: $${state.amount.toFixed(4)}\nðŸ†” UID: \`${state.binanceId}\``, {
+                bot.editMessageText(`✅ **Request Sent!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 UID: \`${state.binanceId}\``, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [[{ text: "ðŸ  Main Menu", callback_data: "main_menu" }]] }
+                    reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
                 });
-                bot.sendMessage(ADMIN_ID, `ðŸš¨ **WITHDRAW REQUEST**\nðŸ‘¤ User: \`${userId}\`\nðŸ†” UID: \`${state.binanceId}\`\nðŸ’° Amt: $${state.amount.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
+                bot.sendMessage(ADMIN_ID, `🚨 **WITHDRAW REQUEST**\n👤 User: \`${userId}\`\n🆔 UID: \`${state.binanceId}\`\n💰 Amt: $${state.amount.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
             }
             delete withdrawStates[userId];
         }
@@ -243,6 +243,19 @@ bot.on('callback_query', async (query) => {
             }
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "menu_active") {
+            const userNumbers = assignedNumbers.filter(n => n.userId === userId);
+            if (userNumbers.length === 0) {
+                bot.editMessageText(`📊 **No Active Numbers**`, {
+                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
+                });
+            } else {
+                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
+                buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
+                bot.editMessageText("📱 **Your Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            }
         }
     } catch (e) { console.log("Callback Error:", e); }
 });
@@ -265,46 +278,46 @@ bot.on('message', async (msg) => {
             try { await bot.copyMessage(id, chatId, msg.message_id); success++; } catch (e) {}
         }
         delete broadcastState[userId];
-        return bot.sendMessage(chatId, `âœ… Broadcast Complete!\nðŸ“Š Total Sent: ${success}`);
+        return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         
-        // --- NEW: /seeuser ---
+        // --- SEE USER ---
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
             const target = parts[1];
             if (!target) {
                 const ids = Object.keys(users);
-                let list = `ðŸ“Š **Total Users:** ${ids.length}\n\n`;
+                let list = `📊 **Total Users:** ${ids.length}\n\n`;
                 ids.forEach((id, i) => {
                     list += `${i+1}. @${users[id].username} | \`${id}\` | Bal: $${users[id].balance.toFixed(2)}\n`;
                 });
                 return bot.sendMessage(chatId, list.substring(0, 4000), { parse_mode: "Markdown" });
             }
             const u = findUser(target);
-            if (u) return bot.sendMessage(chatId, `ðŸ‘¤ **User Info:**\nðŸ†” ID: \`${u.id}\`\nðŸ‘¤ Username: @${u.username}\nðŸ’° Balance: $${u.balance.toFixed(4)}`, { parse_mode: "Markdown" });
-            return bot.sendMessage(chatId, "âŒ User not found.");
+            if (u) return bot.sendMessage(chatId, `👤 **User Info:**\n🆔 ID: \`${u.id}\`\n👤 Username: @${u.username}\n💰 Balance: $${u.balance.toFixed(4)}`, { parse_mode: "Markdown" });
+            return bot.sendMessage(chatId, "❌ User not found.");
         }
 
-        // --- NEW: /baladduser ---
-        if (msgText.startsWith('/baladduser')) {
+        // --- ADD BALANCE ---
+        if (msgText.startsWith('/baladduser') || msgText.startsWith('/addbaluser')) {
             const parts = msgText.trim().split(/\s+/);
-            if (parts.length < 3) return bot.sendMessage(chatId, "âš ï¸ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
+            if (parts.length < 3) return bot.sendMessage(chatId, "⚠️ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
             const u = findUser(parts[1]);
             const amt = parseFloat(parts[2]);
             if (u && !isNaN(amt)) {
                 users[u.id].balance += amt;
-                bot.sendMessage(u.id, `ðŸ’° Admin added $${amt.toFixed(4)} to your balance.`, { parse_mode: "Markdown" }).catch(() => {});
-                return bot.sendMessage(chatId, `âœ… Added $${amt} to @${u.username}. New Bal: $${users[u.id].balance.toFixed(4)}`);
+                bot.sendMessage(u.id, `💰 Admin added $${amt.toFixed(4)} to your balance.`, { parse_mode: "Markdown" }).catch(() => {});
+                return bot.sendMessage(chatId, `✅ Added $${amt} to @${u.username}. New Bal: $${users[u.id].balance.toFixed(4)}`);
             }
-            return bot.sendMessage(chatId, "âŒ Failed to add balance.");
+            return bot.sendMessage(chatId, "❌ Failed to add balance.");
         }
 
         if (msgText === '/broadcast') {
             broadcastState[userId] = true;
-            return bot.sendMessage(chatId, "ðŸ“¢ Send message for broadcast:");
+            return bot.sendMessage(chatId, "📢 Send message for broadcast:");
         }
 
         if (msgText.startsWith('/delnum')) {
@@ -313,12 +326,12 @@ bot.on('message', async (msg) => {
             const s = params[0].toLowerCase(), c = params.slice(1).join(' ').toLowerCase();
             const oldLen = availableNumbers.length;
             availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === s && n.country.toLowerCase() === c));
-            return bot.sendMessage(chatId, `ðŸ—‘ Deleted ${oldLen - availableNumbers.length} numbers.`);
+            return bot.sendMessage(chatId, `🗑 Deleted ${oldLen - availableNumbers.length} numbers.`);
         }
 
         if (msgText.startsWith('/addservice')) {
             const sName = msgText.replace('/addservice', '').trim();
-            if (sName) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `âœ… Service ${sName} added.`); }
+            if (sName) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
             return;
         }
 
@@ -329,7 +342,7 @@ bot.on('message', async (msg) => {
                 if (services[sName]) { 
                     services[sName].rates[cName] = amount; 
                     if(!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                    bot.sendMessage(chatId, `âœ… Rate set.`); 
+                    bot.sendMessage(chatId, `✅ Rate set.`); 
                 }
             }
             return;
@@ -350,15 +363,15 @@ bot.on('message', async (msg) => {
                             const n = line.replace(/\D/g, '').trim();
                             if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
                         });
-                        bot.sendMessage(chatId, "âœ… Numbers Added.");
+                        bot.sendMessage(chatId, "✅ Numbers Added.");
                     });
                 });
             }
             return;
         }
 
-        if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "âœ… Withdrawal ON."); return; }
-        if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "âŒ Withdrawal OFF."); return; }
+        if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal ON."); return; }
+        if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal OFF."); return; }
     }
 
     // --- NORMAL USER FLOW ---
@@ -371,13 +384,13 @@ bot.on('message', async (msg) => {
         const state = withdrawStates[userId];
         if (state.step === 1) {
             state.binanceId = msgText.trim(); state.step = 2;
-            bot.sendMessage(chatId, `ðŸ’° Enter amount to withdraw:`);
+            bot.sendMessage(chatId, `💰 Enter amount to withdraw:`);
         } else if (state.step === 2) {
             const amt = parseFloat(msgText);
-            if (isNaN(amt) || amt < 1.0 || amt > users[userId].balance) return bot.sendMessage(chatId, "âŒ Invalid amount.");
+            if (isNaN(amt) || amt < 1.0 || amt > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
             state.amount = amt; state.step = 3;
-            bot.sendMessage(chatId, `âš ï¸ Confirm withdraw $${amt.toFixed(4)}?`, { 
-                reply_markup: { inline_keyboard: [[{ text: "âœ… Confirm", callback_data: "confirm_withdraw" }, { text: "âŒ No", callback_data: "main_menu" }]] } 
+            bot.sendMessage(chatId, `⚠️ Confirm withdraw $${amt.toFixed(4)}?`, { 
+                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_withdraw" }, { text: "❌ No", callback_data: "main_menu" }]] } 
             });
         }
         return;
@@ -385,19 +398,22 @@ bot.on('message', async (msg) => {
 
     if (transferStates[userId]) {
         const state = transferStates[userId];
-        if (state.step === 2) {
+        if (state.step === 1) {
+            state.targetId = parseInt(msgText.trim()); state.step = 2;
+            bot.sendMessage(chatId, `💵 Enter amount to transfer:`);
+        } else if (state.step === 2) {
             const amount = parseFloat(msgText.trim());
-            if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "âŒ Invalid amount.");
+            if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
             state.amount = amount; state.step = 3;
-            bot.sendMessage(chatId, `âš ï¸ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
-                reply_markup: { inline_keyboard: [[{ text: "âœ… Confirm", callback_data: "confirm_transfer" }, { text: "âŒ Cancel", callback_data: "main_menu" }]] } 
+            bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
+                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
             });
         }
         return;
     }
 });
 
-// OTP Matching
+// OTP Matching Logic
 bot.on('channel_post', (msg) => {
     const text = msg.text || "";
     const idx = assignedNumbers.findIndex(n => text.includes(String(n.number).slice(-4)));
@@ -406,6 +422,6 @@ bot.on('channel_post', (msg) => {
         const reward = services[item.service]?.rates[item.country] || 0.0030;
         if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
         users[item.userId].balance += reward;
-        bot.sendMessage(item.userId, `ðŸ”” **OTP RECEIVED!**\nðŸ”¢ Number: \`${item.number}\`\nðŸ’° Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+        bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
     }
 });
