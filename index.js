@@ -149,9 +149,6 @@ bot.on('callback_query', async (query) => {
             servicePriceState[userId] = { step: 1 };
             return bot.sendMessage(chatId, "💰 Enter Service Name to set price:");
         }
-        else if (data === "admin_see_user") {
-            return bot.sendMessage(chatId, "🔍 To see user info, send: `/seeuser ID` or `/seeuser @username`", { parse_mode: "Markdown" });
-        }
 
         if (data === "check_join") {
             const joined = await checkJoin(userId);
@@ -289,24 +286,23 @@ bot.on('message', async (msg) => {
                 inline_keyboard: [
                     [{ text: "📢 Broadcast", callback_data: "admin_broadcast" }], 
                     [{ text: "➕ Add Number", callback_data: "admin_add_number" }],
-                    [{ text: "💰 Service Price", callback_data: "admin_service_price" }],
-                    [{ text: "🔍 See User Info", callback_data: "admin_see_user" }]
+                    [{ text: "💰 Service Price", callback_data: "admin_service_price" }]
                 ] 
             }
         });
     }
 
-    // /seeuser Command Logic (Admin Only)
+    // /seeuser Command Fix
     if (msgText.startsWith('/seeuser') && userId === ADMIN_ID) {
         const input = msgText.split(" ")[1]; 
         if (!input) return bot.sendMessage(chatId, "⚠️ Usage: `/seeuser ID` or `/seeuser @username`", { parse_mode: "Markdown" });
 
         const targetUser = findUser(input);
         if (targetUser) {
-            const info = `👤 **User Details:**\n\n🆔 ID: \`${targetUser.id}\`\n👤 Username: @${targetUser.username}\n💰 Balance: $${targetUser.balance.toFixed(4)}`;
+            const info = `👤 **Username:** @${targetUser.username}\n🆔 **User ID:** \`${targetUser.id}\`\n💰 **Balance:** $${targetUser.balance.toFixed(4)}`;
             return bot.sendMessage(chatId, info, { parse_mode: "Markdown" });
         } else {
-            return bot.sendMessage(chatId, "❌ User not found in database!");
+            return bot.sendMessage(chatId, "❌ User not found!");
         }
     }
 
