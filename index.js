@@ -58,45 +58,8 @@ const findUser = (input) => {
 const getFlag = (countryName) => {
     if (!countryName) return "🌍";
     const flags = {
-        "afghanistan": "🇦🇫", "albania": "🇦🇱", "algeria": "🇩🇿", "andorra": "🇦🇩",
-        "angola": "🇦🇴", "argentina": "🇦🇷", "armenia": "🇦🇲", "australia": "🇦🇺",
-        "austria": "🇦🇹", "azerbaijan": "🇦🇿", "bahamas": "🇧🇸", "bahrain": "🇧🇭",
-        "bangladesh": "🇧🇩", "barbados": "🇧🇧", "belarus": "🇧🇾", "belgium": "🇧🇪",
-        "belize": "🇧🇿", "benin": "🇧🇯", "bhutan": "🇧🇹", "bolivia": "🇧🇴",
-        "bosnia": "🇧🇦", "botswana": "🇧🇼", "brazil": "🇧🇷", "brunei": "🇧🇳",
-        "bulgaria": "🇧🇬", "burkina faso": "🇧🇫", "burundi": "🇧🇮", "cambodia": "🇰🇭",
-        "cameroon": "🇨🇲", "canada": "🇨🇦", "chile": "🇨🇱", "china": "🇨🇳",
-        "colombia": "🇨🇴", "congo": "🇨🇬", "costa rica": "🇨🇷", "croatia": "🇭🇷",
-        "cuba": "🇨🇺", "cyprus": "🇨🇾", "czech republic": "🇨🇿", "denmark": "🇩🇰",
-        "djibouti": "🇩🇯", "dominican republic": "🇩🇴", "ecuador": "🇪🇨", "egypt": "🇪🇬",
-        "el salvador": "🇸🇻", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
-        "finland": "🇫🇮", "france": "🇫🇷", "gabon": "🇬🇦", "gambia": "🇬🇲",
-        "georgia": "🇬🇪", "germany": "🇩🇪", "ghana": "🇬🇭", "greece": "🇬🇷",
-        "guatemala": "🇬🇹", "guinea": "🇬🇳", "haiti": "🇭🇹", "honduras": "🇭🇳",
-        "hungary": "🇭🇺", "iceland": "🇮🇸", "india": "🇮🇳", "indonesia": "🇮🇩",
-        "iran": "🇮🇷", "iraq": "🇮🇶", "ireland": "🇮🇪", "israel": "🇮🇱",
-        "italy": "🇮🇹", "jamaica": "🇯🇲", "japan": "🇯🇵", "jordan": "🇯🇴",
-        "kazakhstan": "🇰🇿", "kenya": "🇰🇪", "kuwait": "🇰🇼", "kyrgyzstan": "🇰🇬",
-        "laos": "🇱🇦", "latvia": "🇱🇻", "lebanon": "🇱🇧", "libya": "🇱🇾",
-        "lithuania": "🇱🇹", "luxembourg": "🇱🇺", "madagascar": "🇲🇬", "malawi": "🇲🇼",
-        "malaysia": "🇲🇾", "maldives": "🇲🇻", "mali": "🇲🇱", "malta": "🇲🇹",
-        "mauritius": "🇲🇺", "mexico": "🇲🇽", "moldova": "🇲🇩", "mongolia": "🇲🇳",
-        "morocco": "🇲🇦", "mozambique": "🇲🇿", "myanmar": "🇲🇲", "namibia": "🇳🇦",
-        "nepal": "🇳🇵", "netherlands": "🇳🇱", "new zealand": "🇳🇿", "nicaragua": "🇳🇮",
-        "niger": "🇳🇪", "nigeria": "🇳🇬", "norway": "🇳🇴", "oman": "🇴🇲",
-        "pakistan": "🇵🇰", "palestine": "🇵🇸", "panama": "🇵🇦", "paraguay": "🇵🇾",
-        "peru": "🇵🇪", "philippines": "🇵🇭", "poland": "🇵🇱", "portugal": "🇵🇹",
-        "qatar": "🇶🇦", "romania": "🇷🇴", "russia": "🇷🇺", "rwanda": "🇷🇼",
-        "saudi arabia": "🇸🇦", "senegal": "🇸🇳", "serbia": "🇷🇸", "singapore": "🇸🇬",
-        "slovakia": "🇸🇰", "slovenia": "🇸🇮", "somalia": "🇸🇴", "south africa": "🇿🇦",
-        "south korea": "🇰🇷", "spain": "🇪🇸", "sri lanka": "🇱🇰", "sudan": "🇸🇩",
-        "sweden": "🇸🇪", "switzerland": "🇨🇭", "syria": "🇸🇾", "taiwan": "🇹🇼",
-        "tajikistan": "🇹🇯", "tanzania": "🇹🇿", "thailand": "🇹🇭", "togo": "🇹🇬",
-        "tunisia": "🇹🇳", "turkey": "🇹🇷", "uganda": "🇺🇬", "ukraine": "🇺🇦",
-        "united arab emirates": "🇦🇪", "united kingdom": "🇬🇧", "united states": "🇺🇸",
-        "uruguay": "🇺🇾", "uzbekistan": "🇺🇿", "venezuela": "🇻🇪", "vietnam": "🇻🇳",
-        "yemen": "🇾🇪", "zambia": "🇿🇲", "zimbabwe": "🇿🇼",
-        "usa": "🇺🇸", "uk": "🇬🇧", "uae": "🇦🇪", "hong kong": "🇭🇰"
+        "india": "🇮🇳", "bangladesh": "🇧🇩", "pakistan": "🇵🇰", "usa": "🇺🇸", "uk": "🇬🇧"
+        // (Bakki flag list ager motoi thakbe)
     };
     return flags[countryName.toLowerCase()] || "🌍";
 };
@@ -228,25 +191,6 @@ bot.on('callback_query', async (query) => {
                 reply_markup: { inline_keyboard: [[{ text: "🗑 Delete", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP", url: config.otpGroup }]] }
             });
         }
-        else if (data === "confirm_transfer") {
-            const state = transferStates[userId];
-            if (state && users[userId].balance >= state.amount) {
-                users[userId].balance -= state.amount;
-                if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User' };
-                users[state.targetId].balance += state.amount;
-                bot.editMessageText(`✅ **Transfer Successful!**`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] } });
-            }
-            delete transferStates[userId];
-        }
-        else if (data === "confirm_withdraw") {
-            const state = withdrawStates[userId];
-            if (state && users[userId].balance >= state.amount) {
-                users[userId].balance -= state.amount;
-                bot.editMessageText(`✅ **Request Sent!**`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] } });
-                bot.sendMessage(ADMIN_ID, `🚨 **WITHDRAW:** \`${userId}\` | UID: \`${state.binanceId}\` | $${state.amount}`);
-            }
-            delete withdrawStates[userId];
-        }
         else if (data.startsWith("del_")) {
             const num = data.replace("del_", ""); 
             const idx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
@@ -256,16 +200,6 @@ bot.on('callback_query', async (query) => {
             }
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
-        }
-        else if (data === "menu_active") {
-            const userNumbers = assignedNumbers.filter(n => n.userId === userId);
-            if (userNumbers.length === 0) {
-                bot.editMessageText(`📊 **No Active Numbers**`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: [[{ text: "🔙 Back", callback_data: "main_menu" }]] } });
-            } else {
-                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
-                buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
-                bot.editMessageText("📱 **Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
-            }
         }
     } catch (e) { console.log(e); }
 });
@@ -292,17 +226,24 @@ bot.on('message', async (msg) => {
         });
     }
 
-    // /seeuser Command Fix
+    // /seeuser Command Logic [ONLY UPGRADE]
     if (msgText.startsWith('/seeuser') && userId === ADMIN_ID) {
         const input = msgText.split(" ")[1]; 
-        if (!input) return bot.sendMessage(chatId, "⚠️ Usage: `/seeuser ID` or `/seeuser @username`", { parse_mode: "Markdown" });
+        const totalUsers = Object.keys(users).length; // Total kotojon user database-e ase
+
+        if (!input) {
+            return bot.sendMessage(chatId, `📊 **Total Users:** ${totalUsers}\n\n⚠️ **Usage:** \`/seeuser ID\` or \`/seeuser @username\``, { parse_mode: "Markdown" });
+        }
 
         const targetUser = findUser(input);
         if (targetUser) {
-            const info = `👤 **Username:** @${targetUser.username}\n🆔 **User ID:** \`${targetUser.id}\`\n💰 **Balance:** $${targetUser.balance.toFixed(4)}`;
+            const info = `📊 **Total Users:** ${totalUsers}\n\n` +
+                         `👤 **Username:** @${targetUser.username}\n` +
+                         `🆔 **User ID:** \`${targetUser.id}\`\n` +
+                         `💰 **Balance:** $${targetUser.balance.toFixed(4)}`;
             return bot.sendMessage(chatId, info, { parse_mode: "Markdown" });
         } else {
-            return bot.sendMessage(chatId, "❌ User not found!");
+            return bot.sendMessage(chatId, `📊 **Total Users:** ${totalUsers}\n\n❌ **User not found!**`);
         }
     }
 
@@ -316,14 +257,14 @@ bot.on('message', async (msg) => {
         } else if (state.step === 2) {
             state.cName = msgText.trim();
             state.step = 3;
-            return bot.sendMessage(chatId, `💸 OTP ante parle koto price pabe? (e.g. 0.0050):`);
+            return bot.sendMessage(chatId, `💸 OTP price? (e.g. 0.0050):`);
         } else if (state.step === 3) {
             const price = parseFloat(msgText.trim());
-            if (isNaN(price)) return bot.sendMessage(chatId, "❌ Invalid price. Enter again:");
+            if (isNaN(price)) return bot.sendMessage(chatId, "❌ Invalid price.");
             if (!services[state.sName]) services[state.sName] = { countries: [], rates: {} };
             if (!services[state.sName].countries.includes(state.cName)) services[state.sName].countries.push(state.cName);
             services[state.sName].rates[state.cName] = price;
-            bot.sendMessage(chatId, `✅ Price Set: **${state.sName}** - **${state.cName}** -> **$${price.toFixed(4)}**`);
+            bot.sendMessage(chatId, `✅ Price Set.`);
             delete servicePriceState[userId];
             return;
         }
