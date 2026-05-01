@@ -23,6 +23,7 @@ let transferStates = {};
 let withdrawStates = {}; 
 let isWithdrawActive = false; 
 let broadcastState = {}; 
+let adminAddState = {}; // Admin workflow control korar jonno
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -56,45 +57,45 @@ const findUser = (input) => {
 const getFlag = (countryName) => {
     if (!countryName) return "🌍";
     const flags = {
-            "afghanistan": "🇦🇫", "albania": "🇦🇱", "algeria": "🇩🇿", "andorra": "🇦🇩",
-    "angola": "🇦🇴", "argentina": "🇦🇷", "armenia": "🇦🇲", "australia": "🇦🇺",
-    "austria": "🇦🇹", "azerbaijan": "🇦🇿", "bahamas": "🇧🇸", "bahrain": "🇧🇭",
-    "bangladesh": "🇧🇩", "barbados": "🇧🇧", "belarus": "🇧🇾", "belgium": "🇧🇪",
-    "belize": "🇧🇿", "benin": "🇧🇯", "bhutan": "🇧🇹", "bolivia": "🇧🇴",
-    "bosnia": "🇧🇦", "botswana": "🇧🇼", "brazil": "🇧🇷", "brunei": "🇧🇳",
-    "bulgaria": "🇧🇬", "burkina faso": "🇧🇫", "burundi": "🇧🇮", "cambodia": "🇰🇭",
-    "cameroon": "🇨🇲", "canada": "🇨🇦", "chile": "🇨🇱", "china": "🇨🇳",
-    "colombia": "🇨🇴", "congo": "🇨🇬", "costa rica": "🇨🇷", "croatia": "🇭🇷",
-    "cuba": "🇨🇺", "cyprus": "🇨🇾", "czech republic": "🇨🇿", "denmark": "🇩🇰",
-    "djibouti": "🇩🇯", "dominican republic": "🇩🇴", "ecuador": "🇪🇨", "egypt": "🇪🇬",
-    "el salvador": "🇸🇻", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
-    "finland": "🇫🇮", "france": "🇫🇷", "gabon": "🇬🇦", "gambia": "🇬🇲",
-    "georgia": "🇬🇪", "germany": "🇩🇪", "ghana": "🇬🇭", "greece": "🇬🇷",
-    "guatemala": "🇬🇹", "guinea": "🇬🇳", "haiti": "🇭🇹", "honduras": "🇭🇳",
-    "hungary": "🇭🇺", "iceland": "🇮🇸", "india": "🇮🇳", "indonesia": "🇮🇩",
-    "iran": "🇮🇷", "iraq": "🇮🇶", "ireland": "🇮🇪", "israel": "🇮🇱",
-    "italy": "🇮🇹", "jamaica": "🇯🇲", "japan": "🇯🇵", "jordan": "🇯🇴",
-    "kazakhstan": "🇰🇿", "kenya": "🇰🇪", "kuwait": "🇰🇼", "kyrgyzstan": "🇰🇬",
-    "laos": "🇱🇦", "latvia": "🇱🇻", "lebanon": "🇱🇧", "libya": "🇱🇾",
-    "lithuania": "🇱🇹", "luxembourg": "🇱🇺", "madagascar": "🇲🇬", "malawi": "🇲🇼",
-    "malaysia": "🇲🇾", "maldives": "🇲🇻", "mali": "🇲🇱", "malta": "🇲🇹",
-    "mauritius": "🇲🇺", "mexico": "🇲🇽", "moldova": "🇲🇩", "mongolia": "🇲🇳",
-    "morocco": "🇲🇦", "mozambique": "🇲🇿", "myanmar": "🇲🇲", "namibia": "🇳🇦",
-    "nepal": "🇳🇵", "netherlands": "🇳🇱", "new zealand": "🇳🇿", "nicaragua": "🇳🇮",
-    "niger": "🇳🇪", "nigeria": "🇳🇬", "norway": "🇳🇴", "oman": "🇴🇲",
-    "pakistan": "🇵🇰", "palestine": "🇵🇸", "panama": "🇵🇦", "paraguay": "🇵🇾",
-    "peru": "🇵🇪", "philippines": "🇵🇭", "poland": "🇵🇱", "portugal": "🇵🇹",
-    "qatar": "🇶🇦", "romania": "🇷🇴", "russia": "🇷🇺", "rwanda": "🇷🇼",
-    "saudi arabia": "🇸🇦", "senegal": "🇸🇳", "serbia": "🇷🇸", "singapore": "🇸🇬",
-    "slovakia": "🇸🇰", "slovenia": "🇸🇮", "somalia": "🇸🇴", "south africa": "🇿🇦",
-    "south korea": "🇰🇷", "spain": "🇪🇸", "sri lanka": "🇱🇰", "sudan": "🇸🇩",
-    "sweden": "🇸🇪", "switzerland": "🇨🇭", "syria": "🇸🇾", "taiwan": "🇹🇼",
-    "tajikistan": "🇹🇯", "tanzania": "🇹🇿", "thailand": "🇹🇭", "togo": "🇹🇬",
-    "tunisia": "🇹🇳", "turkey": "🇹🇷", "uganda": "🇺🇬", "ukraine": "🇺🇦",
-    "united arab emirates": "🇦🇪", "united kingdom": "🇬🇧", "united states": "🇺🇸",
-    "uruguay": "🇺🇾", "uzbekistan": "🇺🇿", "venezuela": "🇻🇪", "vietnam": "🇻🇳",
-    "yemen": "🇾🇪", "zambia": "🇿🇲", "zimbabwe": "🇿🇼",
-    "usa": "🇺🇸", "uk": "🇬🇧", "uae": "🇦🇪", "hong kong": "🇭🇰"
+        "afghanistan": "🇦🇫", "albania": "🇦🇱", "algeria": "🇩🇿", "andorra": "🇦🇩",
+        "angola": "🇦🇴", "argentina": "🇦🇷", "armenia": "🇦🇲", "australia": "🇦🇺",
+        "austria": "🇦🇹", "azerbaijan": "🇦🇿", "bahamas": "🇧🇸", "bahrain": "🇧🇭",
+        "bangladesh": "🇧🇩", "barbados": "🇧🇧", "belarus": "🇧🇾", "belgium": "🇧🇪",
+        "belize": "🇧🇿", "benin": "🇧🇯", "bhutan": "🇧🇹", "bolivia": "🇧🇴",
+        "bosnia": "🇧🇦", "botswana": "🇧🇼", "brazil": "🇧🇷", "brunei": "🇧🇳",
+        "bulgaria": "🇧🇬", "burkina faso": "🇧🇫", "burundi": "🇧🇮", "cambodia": "🇰🇭",
+        "cameroon": "🇨🇲", "canada": "🇨🇦", "chile": "🇨🇱", "china": "🇨🇳",
+        "colombia": "🇨🇴", "congo": "🇨🇬", "costa rica": "🇨🇷", "croatia": "🇭🇷",
+        "cuba": "🇨🇺", "cyprus": "🇨🇾", "czech republic": "🇨🇿", "denmark": "🇩🇰",
+        "djibouti": "🇩🇯", "dominican republic": "🇩🇴", "ecuador": "🇪🇨", "egypt": "🇪🇬",
+        "el salvador": "🇸🇻", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
+        "finland": "🇫🇮", "france": "🇫🇷", "gabon": "🇬🇦", "gambia": "🇬🇲",
+        "georgia": "🇬🇪", "germany": "🇩🇪", "ghana": "🇬🇭", "greece": "🇬🇷",
+        "guatemala": "🇬🇹", "guinea": "🇬🇳", "haiti": "🇭🇹", "honduras": "🇭🇳",
+        "hungary": "🇭🇺", "iceland": "🇮🇸", "india": "🇮🇳", "indonesia": "🇮🇩",
+        "iran": "🇮🇷", "iraq": "🇮🇶", "ireland": "🇮🇪", "israel": "🇮🇱",
+        "italy": "🇮🇹", "jamaica": "🇯🇲", "japan": "🇯🇵", "jordan": "🇯🇴",
+        "kazakhstan": "🇰🇿", "kenya": "🇰🇪", "kuwait": "🇰🇼", "kyrgyzstan": "🇰🇬",
+        "laos": "🇱🇦", "latvia": "🇱🇻", "lebanon": "🇱🇧", "libya": "🇱🇾",
+        "lithuania": "🇱🇹", "luxembourg": "🇱🇺", "madagascar": "🇲🇬", "malawi": "🇲🇼",
+        "malaysia": "🇲🇾", "maldives": "🇲🇻", "mali": "🇲🇱", "malta": "🇲🇹",
+        "mauritius": "🇲🇺", "mexico": "🇲🇽", "moldova": "🇲🇩", "mongolia": "🇲🇳",
+        "morocco": "🇲🇦", "mozambique": "🇲🇿", "myanmar": "🇲🇲", "namibia": "🇳🇦",
+        "nepal": "🇳🇵", "netherlands": "🇳🇱", "new zealand": "🇳🇿", "nicaragua": "🇳🇮",
+        "niger": "🇳🇪", "nigeria": "🇳🇬", "norway": "🇳🇴", "oman": "🇴🇲",
+        "pakistan": "🇵🇰", "palestine": "🇵🇸", "panama": "🇵🇦", "paraguay": "🇵🇾",
+        "peru": "🇵🇪", "philippines": "🇵🇭", "poland": "🇵🇱", "portugal": "🇵🇹",
+        "qatar": "🇶🇦", "romania": "🇷🇴", "russia": "🇷🇺", "rwanda": "🇷🇼",
+        "saudi arabia": "🇸🇦", "senegal": "🇸🇳", "serbia": "🇷🇸", "singapore": "🇸🇬",
+        "slovakia": "🇸🇰", "slovenia": "🇸🇮", "somalia": "🇸🇴", "south africa": "🇿🇦",
+        "south korea": "🇰🇷", "spain": "🇪🇸", "sri lanka": "🇱🇰", "sudan": "🇸🇩",
+        "sweden": "🇸🇪", "switzerland": "🇨🇭", "syria": "🇸🇾", "taiwan": "🇹🇼",
+        "tajikistan": "🇹🇯", "tanzania": "🇹🇿", "thailand": "🇹🇭", "togo": "🇹🇬",
+        "tunisia": "🇹🇳", "turkey": "🇹🇷", "uganda": "🇺🇬", "ukraine": "🇺🇦",
+        "united arab emirates": "🇦🇪", "united kingdom": "🇬🇧", "united states": "🇺🇸",
+        "uruguay": "🇺🇾", "uzbekistan": "🇺🇿", "venezuela": "🇻🇪", "vietnam": "🇻🇳",
+        "yemen": "🇾🇪", "zambia": "🇿🇲", "zimbabwe": "🇿🇼",
+        "usa": "🇺🇸", "uk": "🇬🇧", "uae": "🇦🇪", "hong kong": "🇭🇰"
     };
     return flags[countryName.toLowerCase()] || "🌍";
 };
@@ -135,6 +136,16 @@ bot.on('callback_query', async (query) => {
     try {
         await bot.answerCallbackQuery(query.id);
 
+        // --- Admin Callbacks ---
+        if (data === "admin_broadcast") {
+            broadcastState[userId] = true;
+            return bot.sendMessage(chatId, "📢 Send the message you want to broadcast:");
+        }
+        else if (data === "admin_add_number") {
+            adminAddState[userId] = { step: 1 };
+            return bot.sendMessage(chatId, "🛠 Enter Service Name (e.g., Face-Book):");
+        }
+
         if (data === "check_join") {
             const joined = await checkJoin(userId);
             if (joined) {
@@ -156,6 +167,7 @@ bot.on('callback_query', async (query) => {
             delete transferStates[userId];
             delete withdrawStates[userId];
             delete broadcastState[userId];
+            delete adminAddState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
@@ -307,7 +319,58 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
     else users[userId].username = msg.from.username || 'User';
 
-    // Broadcast logic
+    // --- /admin Command Logic ---
+    if (msgText === '/admin' && userId === ADMIN_ID) {
+        return bot.sendMessage(chatId, "⚡ **Admin Control Panel**", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "📢 Broadcast", callback_data: "admin_broadcast" }],
+                    [{ text: "➕ Add Number", callback_data: "admin_add_number" }]
+                ]
+            }
+        });
+    }
+
+    // Admin Add Number Workflow
+    if (userId === ADMIN_ID && adminAddState[userId]) {
+        const state = adminAddState[userId];
+        if (state.step === 1) {
+            state.sName = msgText.trim();
+            state.step = 2;
+            return bot.sendMessage(chatId, `🌍 Enter Country Name for **${state.sName}**:`);
+        } else if (state.step === 2) {
+            state.cName = msgText.trim();
+            state.step = 3;
+            return bot.sendMessage(chatId, `📂 Now send the **.txt file** containing numbers for ${state.sName} (${state.cName}):`);
+        }
+    }
+
+    // Admin File Handling (for /admin flow)
+    if (userId === ADMIN_ID && (msg.document || msg.reply_to_message?.document)) {
+        const state = adminAddState[userId];
+        if (state && state.step === 3) {
+            const doc = msg.document || msg.reply_to_message.document;
+            const fileLink = await bot.getFileLink(doc.file_id);
+            https.get(fileLink, (res) => {
+                let data = ''; res.on('data', d => data += d);
+                res.on('end', () => {
+                    const sName = state.sName;
+                    const cName = state.cName;
+                    if (!services[sName]) services[sName] = { countries: [], rates: {} };
+                    if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                    data.split('\n').forEach(line => {
+                        const n = line.replace(/\D/g, '').trim();
+                        if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
+                    });
+                    bot.sendMessage(chatId, `✅ Numbers Successfully Added to **${sName} - ${cName}**.`);
+                    delete adminAddState[userId];
+                });
+            });
+            return;
+        }
+    }
+
+    // Broadcast message capture
     if (chatId === ADMIN_ID && broadcastState[userId]) {
         const userList = Object.keys(users);
         let success = 0;
@@ -318,10 +381,9 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
-    // --- ADMIN COMMANDS ---
+    // --- ADMIN COMMANDS (Original) ---
     if (chatId === ADMIN_ID) {
         
-        // --- SEE USER ---
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
             const target = parts[1];
@@ -338,7 +400,6 @@ bot.on('message', async (msg) => {
             return bot.sendMessage(chatId, "❌ User not found.");
         }
 
-        // --- ADD BALANCE ---
         if (msgText.startsWith('/baladduser') || msgText.startsWith('/addbaluser')) {
             const parts = msgText.trim().split(/\s+/);
             if (parts.length < 3) return bot.sendMessage(chatId, "⚠️ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
@@ -452,38 +513,27 @@ bot.on('message', async (msg) => {
 
 // --- OTP Matching Logic & Auto Forward (Last 4 Digit Match) ---
 bot.on('channel_post', async (msg) => {
-    // Message er text ba image caption check korbe
     const text = msg.text || msg.caption || ""; 
     const channelId = msg.chat.id;
     const messageId = msg.message_id;
 
     if (!text) return;
 
-    // Assigned numbers list theke last 4 digit match kora hocche
     const matchedIdx = assignedNumbers.findIndex(n => {
         const lastFour = String(n.number).slice(-4);
         return text.includes(lastFour);
     });
     
     if (matchedIdx !== -1) {
-        // Active list theke remove kora hocche
         const item = assignedNumbers.splice(matchedIdx, 1)[0];
-        
-        // Reward logic (Rates theke neya hocche)
         const reward = services[item.service]?.rates[item.country] || 0.0030;
         
         if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
-        
-        // User balance update
         users[item.userId].balance += reward;
 
-        // Prothome notify kora
         await bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}\n\n👇 **Forwarded OTP Message:**`, { parse_mode: "Markdown" });
 
-        // Original message hoboho forward kora
         bot.forwardMessage(item.userId, channelId, messageId).catch(e => {
-            console.log("Forward Error:", e);
-            // Error hole backup text pathiye deya
             bot.sendMessage(item.userId, `📝 **OTP Text:**\n${text}`);
         });
     }
