@@ -24,7 +24,7 @@ let withdrawStates = {};
 let isWithdrawActive = false; 
 let broadcastState = {}; 
 let adminAddState = {}; 
-let servicePriceState = {}; // Service price flow control korar jonno
+let servicePriceState = {}; 
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -145,9 +145,12 @@ bot.on('callback_query', async (query) => {
             adminAddState[userId] = { step: 1 };
             return bot.sendMessage(chatId, "🛠 Enter Service Name (e.g., Face-Book):");
         }
-        else if (data === "admin_service_price") { // New Price Button Flow
+        else if (data === "admin_service_price") {
             servicePriceState[userId] = { step: 1 };
             return bot.sendMessage(chatId, "💰 Enter Service Name to set price:");
+        }
+        else if (data === "admin_see_user") {
+            return bot.sendMessage(chatId, "🔍 To see user info, send: `/seeuser ID` or `/seeuser @username`", { parse_mode: "Markdown" });
         }
 
         if (data === "check_join") {
@@ -286,10 +289,25 @@ bot.on('message', async (msg) => {
                 inline_keyboard: [
                     [{ text: "📢 Broadcast", callback_data: "admin_broadcast" }], 
                     [{ text: "➕ Add Number", callback_data: "admin_add_number" }],
-                    [{ text: "💰 Service Price", callback_data: "admin_service_price" }] // Added Button
+                    [{ text: "💰 Service Price", callback_data: "admin_service_price" }],
+                    [{ text: "🔍 See User Info", callback_data: "admin_see_user" }]
                 ] 
             }
         });
+    }
+
+    // /seeuser Command Logic (Admin Only)
+    if (msgText.startsWith('/seeuser') && userId === ADMIN_ID) {
+        const input = msgText.split(" ")[1]; 
+        if (!input) return bot.sendMessage(chatId, "⚠️ Usage: `/seeuser ID` or `/seeuser @username`", { parse_mode: "Markdown" });
+
+        const targetUser = findUser(input);
+        if (targetUser) {
+            const info = `👤 **User Details:**\n\n🆔 ID: \`${targetUser.id}\`\n👤 Username: @${targetUser.username}\n💰 Balance: $${targetUser.balance.toFixed(4)}`;
+            return bot.sendMessage(chatId, info, { parse_mode: "Markdown" });
+        } else {
+            return bot.sendMessage(chatId, "❌ User not found in database!");
+        }
     }
 
     // Service Price Flow Logic
@@ -364,4 +382,3 @@ bot.on('channel_post', async (msg) => {
         bot.forwardMessage(item.userId, msg.chat.id, msg.message_id).catch(() => bot.sendMessage(item.userId, text));
     }
 });
-                
