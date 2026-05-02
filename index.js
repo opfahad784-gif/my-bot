@@ -126,6 +126,18 @@ const sendMainMenu = (chatId, username) => {
     });
 };
 
+const sendAdminPanel = (chatId) => {
+    bot.sendMessage(chatId, "🛠 **Admin Control Panel**", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
+                [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
+                [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
+            ]
+        }
+    });
+};
+
 // --- CALLBACK HANDLING ---
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
@@ -158,6 +170,30 @@ bot.on('callback_query', async (query) => {
             delete broadcastState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "admin_view_users") {
+            if (userId !== ADMIN_ID) return;
+            const ids = Object.keys(users);
+            let list = `📊 **Total Users:** ${ids.length}\n\n`;
+            ids.slice(0, 20).forEach((id, i) => {
+                list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)}\n`;
+            });
+            bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
+        }
+        else if (data === "admin_broadcast") {
+            if (userId !== ADMIN_ID) return;
+            broadcastState[userId] = true;
+            bot.sendMessage(chatId, "📢 Send message for broadcast:");
+        }
+        else if (data === "admin_withdraw_on") {
+            if (userId !== ADMIN_ID) return;
+            isWithdrawActive = true;
+            bot.sendMessage(chatId, "✅ Withdrawal system is now ON.");
+        }
+        else if (data === "admin_withdraw_off") {
+            if (userId !== ADMIN_ID) return;
+            isWithdrawActive = false;
+            bot.sendMessage(chatId, "❌ Withdrawal system is now OFF.");
         }
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
@@ -289,7 +325,7 @@ bot.on('callback_query', async (query) => {
                     reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
                 });
             } else {
-                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }, { text: "📱 OTP GROUP HERE", url: config.otpGroup }]);
+                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
                 buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
                 bot.editMessageText("📱 **Your Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
             }
@@ -321,6 +357,11 @@ bot.on('message', async (msg) => {
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         
+        // ADDED: Admin Command to show Panel
+        if (msgText === '/admin') {
+            return sendAdminPanel(chatId);
+        }
+
         // --- SEE USER ---
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
