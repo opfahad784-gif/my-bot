@@ -23,6 +23,7 @@ let transferStates = {};
 let withdrawStates = {}; 
 let isWithdrawActive = false; 
 let broadcastState = {}; 
+let groupSettingState = {};
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -132,6 +133,7 @@ const sendAdminPanel = (chatId) => {
             inline_keyboard: [
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
+                [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
             ]
         }
@@ -168,6 +170,7 @@ bot.on('callback_query', async (query) => {
             delete transferStates[userId];
             delete withdrawStates[userId];
             delete broadcastState[userId];
+            delete groupSettingState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
@@ -194,6 +197,31 @@ bot.on('callback_query', async (query) => {
             if (userId !== ADMIN_ID) return;
             isWithdrawActive = false;
             bot.sendMessage(chatId, "❌ Withdrawal system is now OFF.");
+        }
+        else if (data === "admin_group_settings") {
+            if (userId !== ADMIN_ID) return;
+            bot.editMessageText(`⚙️ **Group Settings**\n\n1. OTP Group: ${config.otpUsername}\n2. Update Group: ${config.updateUsername}\n\nSelect what to update:`, {
+                chat_id: chatId, message_id: query.message.message_id,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }],
+                        [{ text: "Update Update Group Link", callback_data: "set_update_link" }],
+                        [{ text: "Update OTP Username", callback_data: "set_otp_user" }],
+                        [{ text: "Update Update Username", callback_data: "set_update_user" }],
+                        [{ text: "🔙 Back", callback_data: "admin_panel" }]
+                    ]
+                }
+            });
+        }
+        else if (data === "admin_panel") {
+            if (userId !== ADMIN_ID) return;
+            await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+            sendAdminPanel(chatId);
+        }
+        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user"].includes(data)) {
+            if (userId !== ADMIN_ID) return;
+            groupSettingState[userId] = data;
+            bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace('_', ' ').toUpperCase()}`);
         }
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
@@ -354,10 +382,21 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
+    // Group Setting Logic
+    if (chatId === ADMIN_ID && groupSettingState[userId]) {
+        const type = groupSettingState[userId];
+        if (type === "set_otp_link") config.otpGroup = msgText;
+        if (type === "set_update_link") config.updateGroup = msgText;
+        if (type === "set_otp_user") config.otpUsername = msgText;
+        if (type === "set_update_user") config.updateUsername = msgText;
+        
+        delete groupSettingState[userId];
+        return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').toUpperCase()} updated successfully!`);
+    }
+
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         
-        // ADDED: Admin Command to show Panel
         if (msgText === '/admin') {
             return sendAdminPanel(chatId);
         }
