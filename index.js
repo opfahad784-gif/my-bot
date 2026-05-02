@@ -29,6 +29,7 @@ let withdrawStates = {};
 let isWithdrawActive = false; 
 let broadcastState = {}; 
 let groupSettingState = {};
+let adminActionState = {}; // Added for button actions
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -137,6 +138,7 @@ const sendAdminPanel = (chatId) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
+                [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
                 [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
@@ -176,8 +178,19 @@ bot.on('callback_query', async (query) => {
             delete withdrawStates[userId];
             delete broadcastState[userId];
             delete groupSettingState[userId];
+            delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "admin_add_service") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'adding_service';
+            bot.sendMessage(chatId, "➕ Please send the **Name** of the service (e.g., Telegram):");
+        }
+        else if (data === "admin_add_rate") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'adding_rate';
+            bot.sendMessage(chatId, "💰 Please send: `ServiceName CountryName Rate` \nExample: `Telegram Russia 0.05`", { parse_mode: "Markdown" });
         }
         else if (data === "admin_view_users") {
             if (userId !== ADMIN_ID) return;
@@ -271,7 +284,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "menu_get_number") {
             const serviceKeys = Object.keys(services);
-            if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services available!", show_alert: true });
+            if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services available! Admin must add services.", show_alert: true });
             let buttons = serviceKeys.map(s => [{ text: s, callback_data: `service_${s}` }]);
             buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
             bot.editMessageText("🛠 Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
@@ -301,7 +314,7 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    bot.editMessageText(`✅ *Nexa Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Waiting for OTP...`, {
+                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
@@ -402,6 +415,39 @@ bot.on('message', async (msg) => {
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
     else users[userId].username = msg.from.username || 'User';
+
+    // Button input handling
+    if (chatId === ADMIN_ID && adminActionState[userId]) {
+        const action = adminActionState[userId];
+        if (action === 'adding_service') {
+            const sName = msgText.trim();
+            if (sName) { 
+                services[sName] = { countries: [], rates: {} }; 
+                bot.sendMessage(chatId, `✅ Service **${sName}** added.`, { parse_mode: "Markdown" }); 
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_rate') {
+            const parts = msgText.split(' ');
+            if (parts.length >= 3) {
+                const rate = parseFloat(parts.pop());
+                const sName = parts[0];
+                const cName = parts.slice(1).join(' ');
+                if (services[sName]) {
+                    services[sName].rates[cName] = rate;
+                    if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                    bot.sendMessage(chatId, `✅ Rate for **${sName} (${cName})** set to $${rate.toFixed(4)}`, { parse_mode: "Markdown" });
+                } else {
+                    bot.sendMessage(chatId, "❌ Service not found. Add service first.");
+                }
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName CountryName Rate`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+    }
 
     // Broadcast logic
     if (chatId === ADMIN_ID && broadcastState[userId]) {
@@ -559,3 +605,4 @@ bot.on('message', async (msg) => {
         return;
     }
 });
+ 
