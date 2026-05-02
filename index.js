@@ -159,6 +159,29 @@ bot.on('callback_query', async (query) => {
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
+        
+        // Admin Button Actions
+        else if (data === "adm_see_all") {
+            const ids = Object.keys(users);
+            let list = `📊 **Total Users:** ${ids.length}\n\n`;
+            ids.slice(0, 20).forEach((id, i) => {
+                list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)}\n`;
+            });
+            bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
+        }
+        else if (data === "adm_broadcast") {
+            broadcastState[userId] = true;
+            bot.sendMessage(chatId, "📢 Send message for broadcast:");
+        }
+        else if (data === "adm_w_on") {
+            isWithdrawActive = true;
+            bot.answerCallbackQuery(query.id, { text: "✅ Withdrawal Enabled", show_alert: true });
+        }
+        else if (data === "adm_w_off") {
+            isWithdrawActive = false;
+            bot.answerCallbackQuery(query.id, { text: "❌ Withdrawal Disabled", show_alert: true });
+        }
+
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
             let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
@@ -321,6 +344,20 @@ bot.on('message', async (msg) => {
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         
+        // --- ADMIN DASHBOARD ---
+        if (msgText === '/admin') {
+            return bot.sendMessage(chatId, "🛠 **Admin Control Panel**\nChoose an action from the buttons below:", {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📊 View All Users", callback_data: "adm_see_all" }, { text: "📢 Broadcast", callback_data: "adm_broadcast" }],
+                        [{ text: "✅ Withdrawal ON", callback_data: "adm_w_on" }, { text: "❌ Withdrawal OFF", callback_data: "adm_w_off" }],
+                        [{ text: "🏠 Back to Main", callback_data: "main_menu" }]
+                    ]
+                }
+            });
+        }
+
         // --- SEE USER ---
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
