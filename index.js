@@ -23,7 +23,6 @@ let transferStates = {};
 let withdrawStates = {}; 
 let isWithdrawActive = false; 
 let broadcastState = {}; 
-let groupSettingState = {}; // Added for group settings logic
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -157,69 +156,9 @@ bot.on('callback_query', async (query) => {
             delete transferStates[userId];
             delete withdrawStates[userId];
             delete broadcastState[userId];
-            delete groupSettingState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
-        
-        // --- Admin Button Actions ---
-        else if (data === "adm_see_all") {
-            const ids = Object.keys(users);
-            let list = `📊 **Total Users:** ${ids.length}\n\n`;
-            ids.slice(0, 20).forEach((id, i) => {
-                list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)}\n`;
-            });
-            bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
-        }
-        else if (data === "adm_broadcast") {
-            broadcastState[userId] = true;
-            bot.sendMessage(chatId, "📢 Send message for broadcast:");
-        }
-        else if (data === "adm_bulk") {
-            bot.sendMessage(chatId, "📁 **Bulk Upload Instructions:**\n\nSend a `.txt` file containing numbers (one per line) and caption it with:\n`/bulk ServiceName, CountryName`\n\nExample: `/bulk WhatsApp, USA`", { parse_mode: "Markdown" });
-        }
-        else if (data === "adm_group_settings") {
-            bot.editMessageText(`⚙️ **Group & Channel Settings**\n\n1️⃣ OTP Group: ${config.otpGroup}\n2️⃣ Update Channel: ${config.updateGroup}\n\nSelect what you want to change:`, {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "🔗 Change OTP Group", callback_data: "set_otp_grp" }],
-                        [{ text: "📢 Change Update Channel", callback_data: "set_upd_chn" }],
-                        [{ text: "🔙 Back", callback_data: "adm_back" }]
-                    ]
-                }
-            });
-        }
-        else if (data === "set_otp_grp") {
-            groupSettingState[userId] = "otp";
-            bot.sendMessage(chatId, "Please send the new OTP Group link and Username in this format:\n`URL, @Username`", { parse_mode: "Markdown" });
-        }
-        else if (data === "set_upd_chn") {
-            groupSettingState[userId] = "update";
-            bot.sendMessage(chatId, "Please send the new Update Channel link and Username in this format:\n`URL, @Username`", { parse_mode: "Markdown" });
-        }
-        else if (data === "adm_back") {
-            bot.editMessageText("🛠 **Admin Control Panel**\nChoose an action from the buttons below:", {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "📊 Users", callback_data: "adm_see_all" }, { text: "📢 Broadcast", callback_data: "adm_broadcast" }],
-                        [{ text: "📁 Bulk Upload", callback_data: "adm_bulk" }, { text: "⚙️ Group Settings", callback_data: "adm_group_settings" }],
-                        [{ text: "✅ With. ON", callback_data: "adm_w_on" }, { text: "❌ With. OFF", callback_data: "adm_w_off" }],
-                        [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
-                    ]
-                }
-            });
-        }
-        else if (data === "adm_w_on") {
-            isWithdrawActive = true;
-            bot.answerCallbackQuery(query.id, { text: "✅ Withdrawal Enabled", show_alert: true });
-        }
-        else if (data === "adm_w_off") {
-            isWithdrawActive = false;
-            bot.answerCallbackQuery(query.id, { text: "❌ Withdrawal Disabled", show_alert: true });
-        }
-
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
             let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
@@ -350,70 +289,7 @@ bot.on('callback_query', async (query) => {
                     reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
                 });
             } else {
-                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
-            });
-        }
-        else if (data === "transfer_bal") {
-            transferStates[userId] = { step: 1 };
-            bot.editMessageText("💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
-            });
-        }
-        else if (data === "withdraw_now") {
-            const user = users[userId] || { balance: 0 };
-            if (user.balance < 1.0000) return bot.answerCallbackQuery(query.id, { text: "❌ Not enough balance!", show_alert: true });
-            withdrawStates[userId] = { step: 1 };
-            bot.editMessageText(`🏦 *Withdrawal*\n\n💳 Please enter your *Binance UID*:`, {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
-            });
-        }
-        else if (data === "confirm_transfer") {
-            const state = transferStates[userId];
-            if (state && users[userId].balance >= state.amount) {
-                users[userId].balance -= state.amount;
-                if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User' };
-                users[state.targetId].balance += state.amount;
-                bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
-                });
-                bot.sendMessage(state.targetId, `💰 **You received $${state.amount.toFixed(4)} from \`${userId}\`!**`, { parse_mode: "Markdown" }).catch(() => {});
-            }
-            delete transferStates[userId];
-        }
-        else if (data === "confirm_withdraw") {
-            const state = withdrawStates[userId];
-            if (state && users[userId].balance >= state.amount) {
-                users[userId].balance -= state.amount;
-                bot.editMessageText(`✅ **Request Sent!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 UID: \`${state.binanceId}\``, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
-                });
-                bot.sendMessage(ADMIN_ID, `🚨 **WITHDRAW REQUEST**\n👤 User: \`${userId}\`\n🆔 UID: \`${state.binanceId}\`\n💰 Amt: $${state.amount.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
-            }
-            delete withdrawStates[userId];
-        }
-        else if (data.startsWith("del_")) {
-            const num = data.replace("del_", ""); 
-            const idx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
-            if (idx !== -1) {
-                const d = assignedNumbers.splice(idx, 1)[0];
-                availableNumbers.push({ service: d.service, country: d.country, number: d.number });
-            }
-            bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-            sendMainMenu(chatId, query.from.username);
-        }
-        else if (data === "menu_active") {
-            const userNumbers = assignedNumbers.filter(n => n.userId === userId);
-            if (userNumbers.length === 0) {
-                bot.editMessageText(`📊 **No Active Numbers**`, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
-                });
-            } else {
-                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
+                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }, { text: "📱 OTP GROUP HERE", url: config.otpGroup }]);
                 buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
                 bot.editMessageText("📱 **Your Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
             }
@@ -442,46 +318,9 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
-    // Group Setting Update Logic
-    if (chatId === ADMIN_ID && groupSettingState[userId]) {
-        const parts = msgText.split(',');
-        if (parts.length < 2) return bot.sendMessage(chatId, "❌ Invalid format. Use: `Link, @Username`", { parse_mode: "Markdown" });
-        
-        const type = groupSettingState[userId];
-        const newLink = parts[0].trim();
-        const newUsername = parts[1].trim();
-
-        if (type === "otp") {
-            config.otpGroup = newLink;
-            config.otpUsername = newUsername;
-            bot.sendMessage(chatId, "✅ OTP Group settings updated!");
-        } else if (type === "update") {
-            config.updateGroup = newLink;
-            config.updateUsername = newUsername;
-            bot.sendMessage(chatId, "✅ Update Channel settings updated!");
-        }
-        delete groupSettingState[userId];
-        return;
-    }
-
     // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
         
-        // --- ADMIN DASHBOARD ---
-        if (msgText === '/admin') {
-            return bot.sendMessage(chatId, "🛠 **Admin Control Panel**\nChoose an action from the buttons below:", {
-                parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "📊 Users", callback_data: "adm_see_all" }, { text: "📢 Broadcast", callback_data: "adm_broadcast" }],
-                        [{ text: "📁 Bulk Upload", callback_data: "adm_bulk" }, { text: "⚙️ Group Settings", callback_data: "adm_group_settings" }],
-                        [{ text: "✅ With. ON", callback_data: "adm_w_on" }, { text: "❌ With. OFF", callback_data: "adm_w_off" }],
-                        [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
-                    ]
-                }
-            });
-        }
-
         // --- SEE USER ---
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
@@ -511,6 +350,11 @@ bot.on('message', async (msg) => {
                 return bot.sendMessage(chatId, `✅ Added $${amt} to @${u.username}. New Bal: $${users[u.id].balance.toFixed(4)}`);
             }
             return bot.sendMessage(chatId, "❌ Failed to add balance.");
+        }
+
+        if (msgText === '/broadcast') {
+            broadcastState[userId] = true;
+            return bot.sendMessage(chatId, "📢 Send message for broadcast:");
         }
 
         if (msgText.startsWith('/delnum')) {
