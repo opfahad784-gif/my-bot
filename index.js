@@ -160,7 +160,7 @@ bot.on('callback_query', async (query) => {
             sendMainMenu(chatId, query.from.username);
         }
         
-        // Admin Button Actions
+        // --- Admin Button Actions ---
         else if (data === "adm_see_all") {
             const ids = Object.keys(users);
             let list = `📊 **Total Users:** ${ids.length}\n\n`;
@@ -172,6 +172,9 @@ bot.on('callback_query', async (query) => {
         else if (data === "adm_broadcast") {
             broadcastState[userId] = true;
             bot.sendMessage(chatId, "📢 Send message for broadcast:");
+        }
+        else if (data === "adm_bulk") {
+            bot.sendMessage(chatId, "📁 **Bulk Upload Instructions:**\n\nSend a `.txt` file containing numbers (one per line) and caption it with:\n`/bulk ServiceName, CountryName`\n\nExample: `/bulk WhatsApp, USA`", { parse_mode: "Markdown" });
         }
         else if (data === "adm_w_on") {
             isWithdrawActive = true;
@@ -350,9 +353,10 @@ bot.on('message', async (msg) => {
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "📊 View All Users", callback_data: "adm_see_all" }, { text: "📢 Broadcast", callback_data: "adm_broadcast" }],
-                        [{ text: "✅ Withdrawal ON", callback_data: "adm_w_on" }, { text: "❌ Withdrawal OFF", callback_data: "adm_w_off" }],
-                        [{ text: "🏠 Back to Main", callback_data: "main_menu" }]
+                        [{ text: "📊 Users", callback_data: "adm_see_all" }, { text: "📢 Broadcast", callback_data: "adm_broadcast" }],
+                        [{ text: "📁 Bulk Upload", callback_data: "adm_bulk" }],
+                        [{ text: "✅ With. ON", callback_data: "adm_w_on" }, { text: "❌ With. OFF", callback_data: "adm_w_off" }],
+                        [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
                     ]
                 }
             });
@@ -387,11 +391,6 @@ bot.on('message', async (msg) => {
                 return bot.sendMessage(chatId, `✅ Added $${amt} to @${u.username}. New Bal: $${users[u.id].balance.toFixed(4)}`);
             }
             return bot.sendMessage(chatId, "❌ Failed to add balance.");
-        }
-
-        if (msgText === '/broadcast') {
-            broadcastState[userId] = true;
-            return bot.sendMessage(chatId, "📢 Send message for broadcast:");
         }
 
         if (msgText.startsWith('/delnum')) {
