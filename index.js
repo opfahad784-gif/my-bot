@@ -12,8 +12,10 @@ app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 // --- CONFIG ---
 const TOKEN = '8413633586:AAFKb3aA6XCoYx_E3ricqSoYo2wk5nb_pOU'; 
 const ADMIN_ID = 7488161246;
-const NEXA_API_KEY = 'YOUR_NEXA_API_KEY'; // Ekhane Nexa key bosiye daw
-const NEXA_BASE_URL = 'https://nexa-otp-url.com/api'; // Nexa API link ekhane hobe
+
+// UPDATED NEXA CONFIG
+const NEXA_API_KEY = 'nxa_a0c78ce02c9a7cee35d9886f72d4c42935a63863'; 
+const NEXA_BASE_URL = 'http://185.190.142.81/api/v1/'; 
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -285,7 +287,8 @@ bot.on('callback_query', async (query) => {
         else if (data.startsWith("country_")) {
             const [, sName, cName] = data.split("_");
             try {
-                const response = await axios.get(`${NEXA_BASE_URL}?api_key=${NEXA_API_KEY}&action=getNumber&service=${sName}&country=${cName}`);
+                // NEXA API INTEGRATION
+                const response = await axios.get(`${NEXA_BASE_URL}getNumber?api_key=${NEXA_API_KEY}&service=${sName}&country=${cName}`);
 
                 if (response.data && response.data.number) {
                     const numData = {
@@ -303,9 +306,10 @@ bot.on('callback_query', async (query) => {
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
 
+                    // OTP AUTO-CHECKING
                     let checkOTP = setInterval(async () => {
                         try {
-                            const otpRes = await axios.get(`${NEXA_BASE_URL}?api_key=${NEXA_API_KEY}&action=getOtp&id=${numData.id}`);
+                            const otpRes = await axios.get(`${NEXA_BASE_URL}getOtp?api_key=${NEXA_API_KEY}&id=${numData.id}`);
                             if (otpRes.data && otpRes.data.otp) {
                                 clearInterval(checkOTP);
                                 const reward = services[sName]?.rates[cName] || 0.0030;
@@ -316,10 +320,10 @@ bot.on('callback_query', async (query) => {
                         } catch (err) { console.log("OTP Check Err:", err); }
                     }, 5000);
                 } else {
-                    bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available!", show_alert: true });
+                    bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available on Nexa!", show_alert: true });
                 }
             } catch (error) {
-                bot.answerCallbackQuery(query.id, { text: "❌ Nexa API Error!", show_alert: true });
+                bot.answerCallbackQuery(query.id, { text: "❌ Nexa API Connection Error!", show_alert: true });
             }
         }
         else if (data === "transfer_bal") {
@@ -429,7 +433,6 @@ bot.on('message', async (msg) => {
             return sendAdminPanel(chatId);
         }
 
-        // --- SEE USER ---
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
             const target = parts[1];
@@ -446,7 +449,6 @@ bot.on('message', async (msg) => {
             return bot.sendMessage(chatId, "❌ User not found.");
         }
 
-        // --- ADD BALANCE ---
         if (msgText.startsWith('/baladduser') || msgText.startsWith('/addbaluser')) {
             const parts = msgText.trim().split(/\s+/);
             if (parts.length < 3) return bot.sendMessage(chatId, "⚠️ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
