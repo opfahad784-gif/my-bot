@@ -12,6 +12,8 @@ app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 // --- CONFIG ---
 const TOKEN = '8413633586:AAFKb3aA6XCoYx_E3ricqSoYo2wk5nb_pOU'; 
 const ADMIN_ID = 7488161246;
+const NEXA_API_KEY = 'YOUR_NEXA_API_KEY'; // Ekhane Nexa key bosiye daw
+const NEXA_BASE_URL = 'https://nexa-otp-url.com/api'; // Nexa API link ekhane hobe
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
@@ -282,17 +284,43 @@ bot.on('callback_query', async (query) => {
         }
         else if (data.startsWith("country_")) {
             const [, sName, cName] = data.split("_");
-            const filteredIndices = availableNumbers
-                .map((n, i) => (n.service.toLowerCase() === sName.toLowerCase() && n.country.toLowerCase() === cName.toLowerCase() ? i : -1))
-                .filter(i => i !== -1);
-            if (filteredIndices.length === 0) return bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available!", show_alert: true });
-            const randomIndex = filteredIndices[Math.floor(Math.random() * filteredIndices.length)];
-            const numData = availableNumbers.splice(randomIndex, 1)[0];
-            assignedNumbers.push({ ...numData, userId });
-            bot.editMessageText(`✅ *Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Wait, Stay here... OTP Coming Soon!`, {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
-            });
+            try {
+                const response = await axios.get(`${NEXA_BASE_URL}?api_key=${NEXA_API_KEY}&action=getNumber&service=${sName}&country=${cName}`);
+
+                if (response.data && response.data.number) {
+                    const numData = {
+                        service: sName,
+                        country: cName,
+                        number: response.data.number,
+                        id: response.data.id,
+                        userId: userId
+                    };
+                    
+                    assignedNumbers.push(numData);
+
+                    bot.editMessageText(`✅ *Nexa Number Assigned!*\n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Waiting for OTP...`, {
+                        chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                        reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
+                    });
+
+                    let checkOTP = setInterval(async () => {
+                        try {
+                            const otpRes = await axios.get(`${NEXA_BASE_URL}?api_key=${NEXA_API_KEY}&action=getOtp&id=${numData.id}`);
+                            if (otpRes.data && otpRes.data.otp) {
+                                clearInterval(checkOTP);
+                                const reward = services[sName]?.rates[cName] || 0.0030;
+                                users[userId].balance += reward;
+                                bot.sendMessage(userId, `🔔 **NEXA OTP RECEIVED!**\n🔢 Number: \`${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+                                assignedNumbers = assignedNumbers.filter(n => n.id !== numData.id);
+                            }
+                        } catch (err) { console.log("OTP Check Err:", err); }
+                    }, 5000);
+                } else {
+                    bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available!", show_alert: true });
+                }
+            } catch (error) {
+                bot.answerCallbackQuery(query.id, { text: "❌ Nexa API Error!", show_alert: true });
+            }
         }
         else if (data === "transfer_bal") {
             transferStates[userId] = { step: 1 };
@@ -340,8 +368,7 @@ bot.on('callback_query', async (query) => {
             const num = data.replace("del_", ""); 
             const idx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
             if (idx !== -1) {
-                const d = assignedNumbers.splice(idx, 1)[0];
-                availableNumbers.push({ service: d.service, country: d.country, number: d.number });
+                assignedNumbers.splice(idx, 1);
             }
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
@@ -528,18 +555,5 @@ bot.on('message', async (msg) => {
             });
         }
         return;
-    }
-});
-
-// OTP Matching Logic
-bot.on('channel_post', (msg) => {
-    const text = msg.text || "";
-    const idx = assignedNumbers.findIndex(n => text.includes(String(n.number).slice(-4)));
-    if (idx !== -1) {
-        const item = assignedNumbers.splice(idx, 1)[0];
-        const reward = services[item.service]?.rates[item.country] || 0.0030;
-        if (!users[item.userId]) users[item.userId] = { balance: 0, username: 'User' };
-        users[item.userId].balance += reward;
-        bot.sendMessage(item.userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`${item.number}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
     }
 });
