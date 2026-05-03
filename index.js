@@ -205,7 +205,7 @@ bot.on('callback_query', async (query) => {
         else if (data === "admin_add_rate") {
             if (userId !== ADMIN_ID) return;
             adminActionState[userId] = 'adding_rate';
-            bot.sendMessage(chatId, "💰 Please send: `ServiceName CountryName Rate` \nExample: `Telegram Russia 0.05`", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "💰 Please send: `ServiceName RangePattern Rate` \nExample: `fb 2376211XXX 0.05`", { parse_mode: "Markdown" });
         }
         else if (data === "admin_view_users") {
             if (userId !== ADMIN_ID) return;
@@ -306,50 +306,54 @@ bot.on('callback_query', async (query) => {
         }
         else if (data.startsWith("service_")) {
             const sName = data.split("_")[1];
-            const countries = services[sName]?.countries || [];
-            if (countries.length === 0) return bot.answerCallbackQuery(query.id, { text: "No countries available!", show_alert: true });
-            // Potaka shuru-te neowa hoyeche nicher line-e
-            let buttons = countries.map(c => [{ text: `${getFlag(c)} ${c}`, callback_data: `country_${sName}_${c}` }]);
+            const patterns = services[sName]?.countries || []; 
+            if (patterns.length === 0) return bot.answerCallbackQuery(query.id, { text: "No ranges available!", show_alert: true });
+            
+            // Flag starts at the beginning
+            let buttons = patterns.map(p => [{ text: `🌍 Range: ${p}`, callback_data: `country_${sName}_${p}` }]);
             buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
-            bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            bot.editMessageText(`🌍 Select pattern for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
         }
         else if (data.startsWith("country_")) {
-            const [, sName, cName] = data.split("_");
+            const [, sName, rangePattern] = data.split("_");
             try {
-                // NEXA API INTEGRATION
-                const response = await axios.get(`${NEXA_BASE_URL}getNumber?api_key=${NEXA_API_KEY}&service=${sName}&country=${cName}`);
+                // NEXA API - REQUEST VIRTUAL NUMBER
+                const response = await axios.post(`${NEXA_BASE_URL}numbers/get?api_key=${NEXA_API_KEY}`, {
+                    range: rangePattern,
+                    format: "national"
+                });
 
-                if (response.data && response.data.number) {
+                if (response.data && response.data.success) {
                     const numData = {
                         service: sName,
-                        country: cName,
+                        range: rangePattern,
                         number: response.data.number,
-                        id: response.data.id,
+                        number_id: response.data.number_id,
                         userId: userId
                     };
                     
                     assignedNumbers.push(numData);
 
-                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`${numData.number}\` | ${getFlag(cName)} ${cName}\n\n⏳ Waiting for OTP...`, {
+                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`${numData.number}\` | Range: ${rangePattern}\n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
 
-                    // OTP AUTO-CHECKING
+                    // POLL FOR OTP (every 2s as per Nexa instructions)
                     let checkOTP = setInterval(async () => {
                         try {
-                            const otpRes = await axios.get(`${NEXA_BASE_URL}getOtp?api_key=${NEXA_API_KEY}&id=${numData.id}`);
-                            if (otpRes.data && otpRes.data.otp) {
+                            const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`);
+                            if (otpRes.data && otpRes.data.success && otpRes.data.otp) {
                                 clearInterval(checkOTP);
-                                const reward = services[sName]?.rates[cName] || 0.0030;
+                                const reward = services[sName]?.rates[rangePattern] || 0.0030;
                                 users[userId].balance += reward;
                                 bot.sendMessage(userId, `🔔 **NEXA OTP RECEIVED!**\n🔢 Number: \`${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
-                                assignedNumbers = assignedNumbers.filter(n => n.id !== numData.id);
+                                assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                             }
                         } catch (err) { console.log("OTP Check Err:", err); }
-                    }, 5000);
+                    }, 2000);
                 } else {
-                    bot.answerCallbackQuery(query.id, { text: "⚠️ No numbers available on Nexa!", show_alert: true });
+                    bot.answerCallbackQuery(query.id, { text: "⚠️ Nexa Number Request Failed!", show_alert: true });
                 }
             } catch (error) {
                 bot.answerCallbackQuery(query.id, { text: "❌ Nexa API Connection Error!", show_alert: true });
@@ -432,7 +436,6 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
     else users[userId].username = msg.from.username || 'User';
 
-    // Button input handling
     if (chatId === ADMIN_ID && adminActionState[userId]) {
         const action = adminActionState[userId];
         if (action === 'adding_service') {
@@ -449,23 +452,22 @@ bot.on('message', async (msg) => {
             if (parts.length >= 3) {
                 const rate = parseFloat(parts.pop());
                 const sName = parts[0];
-                const cName = parts.slice(1).join(' ');
+                const pattern = parts.slice(1).join(' ');
                 if (services[sName]) {
-                    services[sName].rates[cName] = rate;
-                    if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                    bot.sendMessage(chatId, `✅ Rate for **${sName} (${cName})** set to $${rate.toFixed(4)}`, { parse_mode: "Markdown" });
+                    services[sName].rates[pattern] = rate;
+                    if (!services[sName].countries.includes(pattern)) services[sName].countries.push(pattern);
+                    bot.sendMessage(chatId, `✅ Rate for **${sName} (Pattern: ${pattern})** set to $${rate.toFixed(4)}`, { parse_mode: "Markdown" });
                 } else {
                     bot.sendMessage(chatId, "❌ Service not found. Add service first.");
                 }
             } else {
-                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName CountryName Rate`", { parse_mode: "Markdown" });
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Pattern Rate`", { parse_mode: "Markdown" });
             }
             delete adminActionState[userId];
             return;
         }
     }
 
-    // Broadcast logic
     if (chatId === ADMIN_ID && broadcastState[userId]) {
         const userList = Object.keys(users);
         let success = 0;
@@ -476,7 +478,6 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
-    // Group Setting Logic
     if (chatId === ADMIN_ID && groupSettingState[userId]) {
         const type = groupSettingState[userId];
         if (type === "set_otp_link") config.otpGroup = msgText;
@@ -488,13 +489,8 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').toUpperCase()} updated successfully!`);
     }
 
-    // --- ADMIN COMMANDS ---
     if (chatId === ADMIN_ID) {
-        
-        if (msgText === '/admin') {
-            return sendAdminPanel(chatId);
-        }
-
+        if (msgText === '/admin') return sendAdminPanel(chatId);
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
             const target = parts[1];
@@ -510,7 +506,6 @@ bot.on('message', async (msg) => {
             if (u) return bot.sendMessage(chatId, `👤 **User Info:**\n🆔 ID: \`${u.id}\`\n👤 Username: @${u.username}\n💰 Balance: $${u.balance.toFixed(4)}`, { parse_mode: "Markdown" });
             return bot.sendMessage(chatId, "❌ User not found.");
         }
-
         if (msgText.startsWith('/baladduser') || msgText.startsWith('/addbaluser')) {
             const parts = msgText.trim().split(/\s+/);
             if (parts.length < 3) return bot.sendMessage(chatId, "⚠️ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
@@ -523,67 +518,39 @@ bot.on('message', async (msg) => {
             }
             return bot.sendMessage(chatId, "❌ Failed to add balance.");
         }
-
         if (msgText === '/broadcast') {
             broadcastState[userId] = true;
             return bot.sendMessage(chatId, "📢 Send message for broadcast:");
         }
-
         if (msgText.startsWith('/delnum')) {
             const params = msgText.replace('/delnum', '').replace(',', ' ').trim().split(/\s+/);
-            if (params.length < 2) return bot.sendMessage(chatId, "Usage: `/delnum Service Country`", { parse_mode: "Markdown" });
+            if (params.length < 2) return bot.sendMessage(chatId, "Usage: `/delnum Service Range`", { parse_mode: "Markdown" });
             const s = params[0].toLowerCase(), c = params.slice(1).join(' ').toLowerCase();
             const oldLen = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === s && n.country.toLowerCase() === c));
+            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === s && n.range.toLowerCase() === c));
             return bot.sendMessage(chatId, `🗑 Deleted ${oldLen - availableNumbers.length} numbers.`);
         }
-
         if (msgText.startsWith('/addservice')) {
             const sName = msgText.replace('/addservice', '').trim();
             if (sName) { services[sName] = { countries: [], rates: {} }; bot.sendMessage(chatId, `✅ Service ${sName} added.`); }
             return;
         }
-
         if (msgText.startsWith('/baladd')) {
             const parts = msgText.split(' ');
             if (parts.length >= 4) {
-                const amount = parseFloat(parts.pop()), sName = parts[1], cName = parts.slice(2).join(' ');
+                const amount = parseFloat(parts.pop()), sName = parts[1], pattern = parts.slice(2).join(' ');
                 if (services[sName]) { 
-                    services[sName].rates[cName] = amount; 
-                    if(!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
+                    services[sName].rates[pattern] = amount; 
+                    if(!services[sName].countries.includes(pattern)) services[sName].countries.push(pattern);
                     bot.sendMessage(chatId, `✅ Rate set.`); 
                 }
             }
             return;
         }
-
-        if (msgText.startsWith('/bulk')) {
-            const header = msgText.replace('/bulk', '').trim().split(',');
-            if (header.length >= 2 && (msg.document || msg.reply_to_message?.document)) {
-                const sName = header[0].trim(), cName = header[1].trim();
-                const doc = msg.document || msg.reply_to_message.document;
-                const fileLink = await bot.getFileLink(doc.file_id);
-                https.get(fileLink, (res) => {
-                    let data = ''; res.on('data', d => data += d);
-                    res.on('end', () => {
-                        if (!services[sName]) services[sName] = { countries: [], rates: {} };
-                        if (!services[sName].countries.includes(cName)) services[sName].countries.push(cName);
-                        data.split('\n').forEach(line => {
-                            const n = line.replace(/\D/g, '').trim();
-                            if (n.length >= 5) availableNumbers.push({ service: sName, country: cName, number: n });
-                        });
-                        bot.sendMessage(chatId, "✅ Numbers Added.");
-                    });
-                });
-            }
-            return;
-        }
-
         if (msgText === '/withdrawalon') { isWithdrawActive = true; bot.sendMessage(chatId, "✅ Withdrawal ON."); return; }
         if (msgText === '/withdrawaloff') { isWithdrawActive = false; bot.sendMessage(chatId, "❌ Withdrawal OFF."); return; }
     }
 
-    // --- NORMAL USER FLOW ---
     if (msgText === '/start') {
         if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
         return sendMainMenu(chatId, msg.from.username);
