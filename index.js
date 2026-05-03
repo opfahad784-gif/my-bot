@@ -308,7 +308,8 @@ bot.on('callback_query', async (query) => {
             const sName = data.split("_")[1];
             const countries = services[sName]?.countries || [];
             if (countries.length === 0) return bot.answerCallbackQuery(query.id, { text: "No countries available!", show_alert: true });
-            let buttons = countries.map(c => [{ text: `${c} ${getFlag(c)}`, callback_data: `country_${sName}_${c}` }]);
+            // Potaka shuru-te neowa hoyeche nicher line-e
+            let buttons = countries.map(c => [{ text: `${getFlag(c)} ${c}`, callback_data: `country_${sName}_${c}` }]);
             buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
             bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
         }
@@ -329,7 +330,7 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`${numData.number}\` | ${cName} ${getFlag(cName)}\n\n⏳ Waiting for OTP...`, {
+                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`${numData.number}\` | ${getFlag(cName)} ${cName}\n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
