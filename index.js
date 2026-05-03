@@ -372,7 +372,8 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "confirm_transfer") {
             const state = transferStates[userId];
-            if (state && users[userId].balance -= state.amount;
+            if (state && users[userId].balance >= state.amount) {
+                users[userId].balance -= state.amount;
                 if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User' };
                 users[state.targetId].balance += state.amount;
                 bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
