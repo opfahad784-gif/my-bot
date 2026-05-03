@@ -60,6 +60,29 @@ const findUser = (input) => {
     return null;
 };
 
+// --- Pattern to Country Mapper ---
+const getCountryByPattern = (pattern) => {
+    const patternMap = {
+        "992": "Tajikistan",
+        "62": "Indonesia",
+        "237": "Cameroon",
+        "880": "Bangladesh",
+        "91": "India",
+        "92": "Pakistan",
+        "7": "Russia",
+        "1": "USA",
+        "44": "UK",
+        "971": "UAE"
+        // Proyojon onujayi ekhane aro pattern add kora jabe
+    };
+    
+    // Pattern er shuru check kore desh khuje ber kora
+    for (const key in patternMap) {
+        if (pattern.startsWith(key)) return patternMap[key];
+    }
+    return "Unknown Country";
+};
+
 const getFlag = (countryName) => {
     if (!countryName) return "🌍";
     const flags = {
@@ -309,9 +332,14 @@ bot.on('callback_query', async (query) => {
             const patterns = services[sName]?.countries || []; 
             if (patterns.length === 0) return bot.answerCallbackQuery(query.id, { text: "No ranges available!", show_alert: true });
             
-            let buttons = patterns.map(p => [{ text: `🌍 Pattern: ${p}`, callback_data: `country_${sName}_${p}` }]);
+            // Updated: pattern na dekhiye Country Name ebong Flag dekhabe
+            let buttons = patterns.map(p => {
+                const country = getCountryByPattern(p);
+                const flag = getFlag(country);
+                return [{ text: `${flag} ${country}`, callback_data: `country_${sName}_${p}` }];
+            });
             buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
-            bot.editMessageText(`🌍 Select pattern for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
         }
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
@@ -333,8 +361,8 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    // Removed "Range" text and formatting for full number with (+)
-                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
+                    // Updated: Removed "Nexa" from "Nexa Number Assigned"
+                    bot.editMessageText(`✅ *Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
@@ -347,16 +375,16 @@ bot.on('callback_query', async (query) => {
                                 clearInterval(checkOTP);
                                 const reward = services[sName]?.rates[rangePattern] || 0.0030;
                                 users[userId].balance += reward;
-                                bot.sendMessage(userId, `🔔 **NEXA OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+                                bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
                                 assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                             }
                         } catch (err) { console.log("OTP Check Err:", err); }
                     }, 2000);
                 } else {
-                    bot.answerCallbackQuery(query.id, { text: "⚠️ Nexa Number Request Failed!", show_alert: true });
+                    bot.answerCallbackQuery(query.id, { text: "⚠️ Number Request Failed!", show_alert: true });
                 }
             } catch (error) {
-                bot.answerCallbackQuery(query.id, { text: "❌ Nexa API Connection Error!", show_alert: true });
+                bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
             }
         }
         else if (data === "transfer_bal") {
