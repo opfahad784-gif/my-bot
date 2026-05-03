@@ -252,7 +252,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_group_settings") {
             if (userId !== ADMIN_ID) return;
-            bot.editMessageText(`⚙️ **Group Settings**\n\n1. OTP Group: ${config.otpUsername}\n2. Update Group: ${config.updateUsername}\n\nSelect what to update:`, {
+            bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
                     inline_keyboard: [
@@ -383,106 +383,11 @@ bot.on('callback_query', async (query) => {
             transferStates[userId] = { step: 1 };
             bot.editMessageText("💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]
-                    ]
-                }
-            });
-        }
-        else if (data === "menu_withdraw") {
-            if (!isWithdrawActive) {
-                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                const today = days[new Date().getDay()];
-                let msg = `📅 **Withdrawal Not Available Today**\n🗓 **Today:** ${today}\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm`;
-                bot.editMessageText(msg, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", disable_web_page_preview: true,
-                    reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
-                });
-            } else {
-                const user = users[userId] || { balance: 0 };
-                bot.editMessageText(`💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n\n👇 **Click "Withdraw Now" to start:**`, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "💸 Withdraw Now", callback_data: "withdraw_now" }],
-                            [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
-                        ]
-                    }
-                });
-            }
-        }
-        else if (data === "menu_get_number") {
-            const serviceKeys = Object.keys(services);
-            if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services available! Admin must add services.", show_alert: true });
-            let buttons = serviceKeys.map(s => [{ text: s, callback_data: `service_${s}` }]);
-            buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
-            bot.editMessageText("🛠 Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
-        }
-        else if (data.startsWith("service_")) {
-            const sName = data.split("_")[1];
-            const patterns = services[sName]?.countries || []; 
-            if (patterns.length === 0) return bot.answerCallbackQuery(query.id, { text: "No ranges available!", show_alert: true });
-            
-            let buttons = patterns.map(p => {
-                const country = getCountryByPattern(p);
-                const flag = getFlag(country);
-                return [{ text: `${flag} ${country}`, callback_data: `country_${sName}_${p}` }];
-            });
-            buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
-            bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
-        }
-        else if (data.startsWith("country_")) {
-            const [, sName, rangePattern] = data.split("_");
-            try {
-                const response = await axios.post(`${NEXA_BASE_URL}numbers/get?api_key=${NEXA_API_KEY}`, {
-                    range: rangePattern,
-                    format: "normal"
-                });
-
-                if (response.data && response.data.success) {
-                    const numData = {
-                        service: sName,
-                        range: rangePattern,
-                        number: response.data.number,
-                        number_id: response.data.number_id,
-                        userId: userId
-                    };
-                    
-                    assignedNumbers.push(numData);
-
-                    bot.editMessageText(`✅ *Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
-                        chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                        reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
-                    });
-
-                    let checkOTP = setInterval(async () => {
-                        try {
-                            const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`);
-                            if (otpRes.data && otpRes.data.success && otpRes.data.otp) {
-                                clearInterval(checkOTP);
-                                const reward = services[sName]?.rates[rangePattern] || 0.0030;
-                                users[userId].balance += reward;
-                                bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
-                                assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
-                            }
-                        } catch (err) { console.log("OTP Check Err:", err); }
-                    }, 2000);
-                } else {
-                    bot.answerCallbackQuery(query.id, { text: "⚠️ Number Request Failed!", show_alert: true });
-                }
-            } catch (error) {
-                bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
-            }
-        }
-        else if (data === "transfer_bal") {
-            transferStates[userId] = { step: 1 };
-            bot.editMessageText("💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                 reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
             });
         }
         else if (data === "withdraw_now") {
             const user = users[userId] || { balance: 0 };
-            // FIX: Removed strict check to allow flow if system is active
             if (user.balance < 1.0000) {
                 return bot.answerCallbackQuery(query.id, { text: "❌ Not enough balance! Minimum $1.0000", show_alert: true });
             }
@@ -603,7 +508,9 @@ bot.on('message', async (msg) => {
         if (type === "set_update_user") config.updateUsername = msgText;
         
         delete groupSettingState[userId];
-        return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').toUpperCase()} updated successfully!`);
+        return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').toUpperCase()} updated successfully!`, {
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_group_settings" }]] }
+        });
     }
 
     if (chatId === ADMIN_ID) {
