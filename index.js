@@ -29,7 +29,7 @@ let withdrawStates = {};
 let isWithdrawActive = false; 
 let broadcastState = {}; 
 let groupSettingState = {};
-let adminActionState = {}; // Added for button actions
+let adminActionState = {}; 
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -139,6 +139,7 @@ const sendAdminPanel = (chatId) => {
             inline_keyboard: [
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
+                [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
                 [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
@@ -181,6 +182,20 @@ bot.on('callback_query', async (query) => {
             delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "admin_check_range") {
+            if (userId !== ADMIN_ID) return;
+            try {
+                const res = await axios.get(`${NEXA_BASE_URL}getServices?api_key=${NEXA_API_KEY}`);
+                let msg = "📊 **Nexa Service Inventory:**\n\n";
+                const servicesData = res.data; 
+                Object.keys(servicesData).slice(0, 20).forEach(s => {
+                    msg += `• **${s}**: ${servicesData[s].count || 0} numbers\n`;
+                });
+                bot.sendMessage(chatId, msg, { parse_mode: "Markdown" });
+            } catch (e) {
+                bot.sendMessage(chatId, "❌ Nexa API-te range check kora sombhob hoyni.");
+            }
         }
         else if (data === "admin_add_service") {
             if (userId !== ADMIN_ID) return;
@@ -357,8 +372,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "confirm_transfer") {
             const state = transferStates[userId];
-            if (state && users[userId].balance >= state.amount) {
-                users[userId].balance -= state.amount;
+            if (state && users[userId].balance -= state.amount;
                 if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User' };
                 users[state.targetId].balance += state.amount;
                 bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
@@ -605,4 +619,3 @@ bot.on('message', async (msg) => {
         return;
     }
 });
- 
