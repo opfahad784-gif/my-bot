@@ -309,18 +309,17 @@ bot.on('callback_query', async (query) => {
             const patterns = services[sName]?.countries || []; 
             if (patterns.length === 0) return bot.answerCallbackQuery(query.id, { text: "No ranges available!", show_alert: true });
             
-            // Flag starts at the beginning
-            let buttons = patterns.map(p => [{ text: `🌍 Range: ${p}`, callback_data: `country_${sName}_${p}` }]);
+            let buttons = patterns.map(p => [{ text: `🌍 Pattern: ${p}`, callback_data: `country_${sName}_${p}` }]);
             buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
             bot.editMessageText(`🌍 Select pattern for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
         }
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
             try {
-                // NEXA API - REQUEST VIRTUAL NUMBER
+                // NEXA API - REQUEST VIRTUAL NUMBER (format set to normal for full number)
                 const response = await axios.post(`${NEXA_BASE_URL}numbers/get?api_key=${NEXA_API_KEY}`, {
                     range: rangePattern,
-                    format: "national"
+                    format: "normal"
                 });
 
                 if (response.data && response.data.success) {
@@ -334,12 +333,13 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`${numData.number}\` | Range: ${rangePattern}\n\n⏳ Waiting for OTP...`, {
+                    // Removed "Range" text and formatting for full number with (+)
+                    bot.editMessageText(`✅ *Nexa Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
 
-                    // POLL FOR OTP (every 2s as per Nexa instructions)
+                    // POLL FOR OTP
                     let checkOTP = setInterval(async () => {
                         try {
                             const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`);
@@ -347,7 +347,7 @@ bot.on('callback_query', async (query) => {
                                 clearInterval(checkOTP);
                                 const reward = services[sName]?.rates[rangePattern] || 0.0030;
                                 users[userId].balance += reward;
-                                bot.sendMessage(userId, `🔔 **NEXA OTP RECEIVED!**\n🔢 Number: \`${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+                                bot.sendMessage(userId, `🔔 **NEXA OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
                                 assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                             }
                         } catch (err) { console.log("OTP Check Err:", err); }
