@@ -35,7 +35,8 @@ let config = {
     otpGroup: "https://t.me/yoosms_otp", 
     updateGroup: "https://t.me/yooosmsupdate",
     otpUsername: "@yoosms_otp",
-    updateUsername: "@yooosmsupdate"
+    updateUsername: "@yooosmsupdate",
+    buyNumberLink: "https://t.me/YooSmsBot" // Default link
 };
 
 // --- HELPERS ---
@@ -297,7 +298,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_group_settings") {
             if (userId !== ADMIN_ID) return;
-            bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n\nSelect what to update:`, {
+            bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n3. Buy Number Link: ${config.buyNumberLink}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
                     inline_keyboard: [
@@ -305,6 +306,7 @@ bot.on('callback_query', async (query) => {
                         [{ text: "Update Update Group Link", callback_data: "set_update_link" }],
                         [{ text: "Update OTP Username", callback_data: "set_otp_user" }],
                         [{ text: "Update Update Username", callback_data: "set_update_user" }],
+                        [{ text: "Update Buy Number Link", callback_data: "set_buy_link" }],
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
                     ]
                 }
@@ -315,7 +317,7 @@ bot.on('callback_query', async (query) => {
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendAdminPanel(chatId);
         }
-        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user"].includes(data)) {
+        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user", "set_buy_link"].includes(data)) {
             if (userId !== ADMIN_ID) return;
             groupSettingState[userId] = data;
             bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace('_', ' ').toUpperCase()}`);
@@ -341,7 +343,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "menu_withdraw") {
             if (!isWithdrawActive) {
-                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday'];
                 const today = days[new Date().getDay()];
                 let msg = `📅 **Withdrawal Not Available Today**\n🗓 **Today:** ${today}\n✅ **Withdrawal Day:** Tuesday (12:00 AM - 12:00 PM)\n🎬 **Withdraw Process:** [Watch Video](https://t.me/SureSmsOfficial)\n\n💡 You can only request withdrawals on Tuesday between 12am and 12pm`;
                 bot.editMessageText(msg, {
@@ -432,10 +434,22 @@ bot.on('callback_query', async (query) => {
                                     maskedNum = "...." + rawNum.substring(rawNum.length - 2);
                                 }
 
-                                const groupMsg = `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${maskedNum}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`;
+                                // --- GROUP DESIGN UPDATED ---
+                                const groupMsg = `🚀 **OTP RECEIVED**\n\n` +
+                                               `📱 **Service:** ${sName}\n` +
+                                               `🔢 **Number:** \`+${maskedNum}\`\n` +
+                                               `💬 **OTP:** \`${otpRes.data.otp}\`\n` +
+                                               `💸 **Price:** $${reward.toFixed(4)}`;
                                 
                                 bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\` | ${country} ${flag}\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
-                                bot.sendMessage(config.otpUsername, groupMsg, { parse_mode: "Markdown" }).catch(() => {});
+                                
+                                // Send to group with Buy Button
+                                bot.sendMessage(config.otpUsername, groupMsg, { 
+                                    parse_mode: "Markdown",
+                                    reply_markup: {
+                                        inline_keyboard: [[{ text: "🛒 Buy Number", url: config.buyNumberLink }]]
+                                    }
+                                }).catch(() => {});
                                 
                                 assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                             }
@@ -596,6 +610,7 @@ bot.on('message', async (msg) => {
         if (type === "set_update_link") config.updateGroup = msgText;
         if (type === "set_otp_user") config.otpUsername = msgText;
         if (type === "set_update_user") config.updateUsername = msgText;
+        if (type === "set_buy_link") config.buyNumberLink = msgText;
         
         delete groupSettingState[userId];
         return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').toUpperCase()} updated successfully!`, {
