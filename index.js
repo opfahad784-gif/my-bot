@@ -112,7 +112,6 @@ const getCountryByPattern = (pattern) => {
         "84": "Vietnam", "681": "Wallis and Futuna", "967": "Yemen", "260": "Zambia", "263": "Zimbabwe"
     };
     
-    // Pattern check from longest to shortest to handle variable lengths
     const sortedKeys = Object.keys(patternMap).sort((a, b) => b.length - a.length);
     for (const key of sortedKeys) {
         if (pattern.startsWith(key)) return patternMap[key];
@@ -384,6 +383,14 @@ bot.on('callback_query', async (query) => {
         }
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
+            const country = getCountryByPattern(rangePattern);
+            const flag = getFlag(country);
+
+            // Set loading state
+            await bot.editMessageText(`⏳ Getting number...`, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown"
+            });
+
             try {
                 const response = await axios.post(`${NEXA_BASE_URL}numbers/get?api_key=${NEXA_API_KEY}`, {
                     range: rangePattern,
@@ -402,7 +409,7 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    bot.editMessageText(`✅ *Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
+                    bot.editMessageText(`✅ *Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` | ${country} ${flag} \n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
                     });
@@ -427,7 +434,7 @@ bot.on('callback_query', async (query) => {
 
                                 const groupMsg = `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${maskedNum}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`;
                                 
-                                bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+                                bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\` | ${country} ${flag}\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
                                 bot.sendMessage(config.otpUsername, groupMsg, { parse_mode: "Markdown" }).catch(() => {});
                                 
                                 assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
@@ -435,10 +442,14 @@ bot.on('callback_query', async (query) => {
                         } catch (err) { console.log("OTP Check Err:", err); }
                     }, 2000);
                 } else {
-                    bot.answerCallbackQuery(query.id, { text: "⚠️ Number Request Failed!", show_alert: true });
+                    bot.sendMessage(chatId, "⚠️ Number Request Failed! Please try again or choose another country.", {
+                        reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+                    });
                 }
             } catch (error) {
-                bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
+                bot.sendMessage(chatId, "❌ Connection Error! Nexa API may be down.", {
+                    reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
+                });
             }
         }
         else if (data === "transfer_bal") {
