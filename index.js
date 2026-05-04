@@ -158,7 +158,7 @@ const sendAdminPanel = (chatId) => {
             inline_keyboard: [
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
-                [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
+                [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
                 [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
@@ -215,6 +215,11 @@ bot.on('callback_query', async (query) => {
             } catch (e) {
                 bot.sendMessage(chatId, "❌ Nexa API-te range check kora sombhob hoyni.");
             }
+        }
+        else if (data === "admin_del_num") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'deleting_range';
+            bot.sendMessage(chatId, "🗑 Please send: `ServiceName RangePattern` \nExample: `telegram 992`", { parse_mode: "Markdown" });
         }
         else if (data === "admin_add_service") {
             if (userId !== ADMIN_ID) return;
@@ -371,7 +376,6 @@ bot.on('callback_query', async (query) => {
                                 
                                 bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                 
-                                // Logic to mask center 4 digits for Group Forwarding
                                 const rawNum = numData.number.toString();
                                 let maskedNum;
                                 if (rawNum.length > 8) {
@@ -382,10 +386,7 @@ bot.on('callback_query', async (query) => {
 
                                 const groupMsg = `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${maskedNum}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`;
                                 
-                                // Send to User
                                 bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
-                                
-                                // Send to Group with masked number
                                 bot.sendMessage(config.otpUsername, groupMsg, { parse_mode: "Markdown" }).catch(() => {});
                                 
                                 assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
@@ -508,6 +509,23 @@ bot.on('message', async (msg) => {
             delete adminActionState[userId];
             return;
         }
+        if (action === 'deleting_range') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                const s = parts[0].toLowerCase(), c = parts.slice(1).join(' ').toLowerCase();
+                if (services[parts[0]]) {
+                    services[parts[0]].countries = services[parts[0]].countries.filter(p => p.toLowerCase() !== c);
+                    delete services[parts[0]].rates[parts.slice(1).join(' ')];
+                    bot.sendMessage(chatId, `🗑 Deleted range **${c}** from **${parts[0]}**.`, { parse_mode: "Markdown" });
+                } else {
+                    bot.sendMessage(chatId, "❌ Service not found.");
+                }
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Pattern`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
     }
 
     if (chatId === ADMIN_ID && broadcastState[userId]) {
@@ -569,10 +587,14 @@ bot.on('message', async (msg) => {
         if (msgText.startsWith('/delnum')) {
             const params = msgText.replace('/delnum', '').replace(',', ' ').trim().split(/\s+/);
             if (params.length < 2) return bot.sendMessage(chatId, "Usage: `/delnum Service Range`", { parse_mode: "Markdown" });
-            const s = params[0].toLowerCase(), c = params.slice(1).join(' ').toLowerCase();
-            const oldLen = availableNumbers.length;
-            availableNumbers = availableNumbers.filter(n => !(n.service.toLowerCase() === s && n.range.toLowerCase() === c));
-            return bot.sendMessage(chatId, `🗑 Deleted ${oldLen - availableNumbers.length} numbers.`);
+            const sName = params[0];
+            const pattern = params.slice(1).join(' ');
+            if (services[sName]) {
+                services[sName].countries = services[sName].countries.filter(p => p !== pattern);
+                delete services[sName].rates[pattern];
+                return bot.sendMessage(chatId, `🗑 Deleted range **${pattern}** from **${sName}**.`, { parse_mode: "Markdown" });
+            }
+            return bot.sendMessage(chatId, "❌ Service not found.");
         }
         if (msgText.startsWith('/addservice')) {
             const sName = msgText.replace('/addservice', '').trim();
