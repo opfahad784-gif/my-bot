@@ -350,11 +350,13 @@ bot.on('callback_query', async (query) => {
                         range: rangePattern,
                         number: response.data.number,
                         number_id: response.data.number_id,
-                        userId: userId
+                        userId: userId,
+                        messageId: query.message.message_id // Save message ID for deletion
                     };
                     
                     assignedNumbers.push(numData);
 
+                    // Removed double + from display logic
                     bot.editMessageText(`✅ *Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                         reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
@@ -367,6 +369,10 @@ bot.on('callback_query', async (query) => {
                                 clearInterval(checkOTP);
                                 const reward = services[sName]?.rates[rangePattern] || 0.0030;
                                 users[userId].balance += reward;
+                                
+                                // Auto Delete the "Number Assigned" message when OTP arrives
+                                bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                                
                                 bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
                                 assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                             }
