@@ -187,6 +187,9 @@ const sendJoinMessage = (chatId) => {
 };
 
 const sendMainMenu = (chatId, username) => {
+    if (users[chatId]?.isBanned) {
+        return bot.sendMessage(chatId, "🚫 **You are banned from using this bot.**");
+    }
     bot.sendMessage(chatId, `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`, {
         reply_markup: {
             inline_keyboard: [
@@ -206,6 +209,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
+                [{ text: "🚫 Ban User", callback_data: "admin_ban_user" }, { text: "✅ Unban User", callback_data: "admin_unban_user" }],
                 [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
                 [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
@@ -223,10 +227,14 @@ bot.on('callback_query', async (query) => {
     try {
         await bot.answerCallbackQuery(query.id);
 
+        if (users[userId]?.isBanned && userId !== ADMIN_ID) {
+            return bot.sendMessage(chatId, "🚫 **You are banned.**");
+        }
+
         if (data === "check_join") {
             const joined = await checkJoin(userId);
             if (joined) {
-                if (!users[userId]) users[userId] = { balance: 0, username: query.from.username || 'User' };
+                if (!users[userId]) users[userId] = { balance: 0, username: query.from.username || 'User', isBanned: false };
                 await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
                 return sendMainMenu(chatId, query.from.username);
             } else {
@@ -248,6 +256,16 @@ bot.on('callback_query', async (query) => {
             delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "admin_ban_user") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'banning_user';
+            bot.sendMessage(chatId, "🚫 Send the **User ID** you want to **Ban**:");
+        }
+        else if (data === "admin_unban_user") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'unbanning_user';
+            bot.sendMessage(chatId, "✅ Send the **User ID** you want to **Unban**:");
         }
         else if (data === "admin_check_range") {
             if (userId !== ADMIN_ID) return;
@@ -301,7 +319,7 @@ bot.on('callback_query', async (query) => {
             const ids = Object.keys(users);
             let list = `📊 **Total Users:** ${ids.length}\n\n`;
             ids.slice(0, 20).forEach((id, i) => {
-                list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)}\n`;
+                list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)} ${users[id].isBanned ? '(BANNED)' : ''}\n`;
             });
             bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
         }
@@ -504,7 +522,7 @@ bot.on('callback_query', async (query) => {
             const state = transferStates[userId];
             if (state && users[userId].balance >= state.amount) {
                 users[userId].balance -= state.amount;
-                if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User' };
+                if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User', isBanned: false };
                 users[state.targetId].balance += state.amount;
                 bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
@@ -558,11 +576,37 @@ bot.on('message', async (msg) => {
     const userId = msg.from?.id;
     if (!userId) return;
 
-    if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User' };
+    if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false };
     else users[userId].username = msg.from.username || 'User';
+
+    if (users[userId].isBanned && userId !== ADMIN_ID) {
+        return; // Silent ignore for banned users
+    }
 
     if (chatId === ADMIN_ID && adminActionState[userId]) {
         const action = adminActionState[userId];
+        if (action === 'banning_user') {
+            const targetId = msgText.trim();
+            if (users[targetId]) {
+                users[targetId].isBanned = true;
+                bot.sendMessage(chatId, `✅ User \`${targetId}\` has been **Banned**.`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ User not found in database.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'unbanning_user') {
+            const targetId = msgText.trim();
+            if (users[targetId]) {
+                users[targetId].isBanned = false;
+                bot.sendMessage(chatId, `✅ User \`${targetId}\` has been **Unbanned**.`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ User not found in database.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
         if (action === 'adding_service') {
             const sName = msgText.trim();
             if (sName) { 
@@ -646,12 +690,12 @@ bot.on('message', async (msg) => {
                 const ids = Object.keys(users);
                 let list = `📊 **Total Users:** ${ids.length}\n\n`;
                 ids.forEach((id, i) => {
-                    list += `${i+1}. @${users[id].username} | \`${id}\` | Bal: $${users[id].balance.toFixed(2)}\n`;
+                    list += `${i+1}. @${users[id].username} | \`${id}\` | Bal: $${users[id].balance.toFixed(2)} ${users[id].isBanned ? '(BANNED)' : ''}\n`;
                 });
                 return bot.sendMessage(chatId, list.substring(0, 4000), { parse_mode: "Markdown" });
             }
             const u = findUser(target);
-            if (u) return bot.sendMessage(chatId, `👤 **User Info:**\n🆔 ID: \`${u.id}\`\n👤 Username: @${u.username}\n💰 Balance: $${u.balance.toFixed(4)}`, { parse_mode: "Markdown" });
+            if (u) return bot.sendMessage(chatId, `👤 **User Info:**\n🆔 ID: \`${u.id}\`\n👤 Username: @${u.username}\n💰 Balance: $${u.balance.toFixed(4)}\n🚫 Banned: ${u.isBanned ? 'Yes' : 'No'}`, { parse_mode: "Markdown" });
             return bot.sendMessage(chatId, "❌ User not found.");
         }
         if (msgText.startsWith('/baladduser') || msgText.startsWith('/addbaluser')) {
