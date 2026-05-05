@@ -36,8 +36,8 @@ let config = {
     updateGroup: "https://t.me/yooosmsupdate",
     otpUsername: "@yoosms_otp",
     updateUsername: "@yooosmsupdate",
-    otpButtonText: "Get Number Now", // Default
-    otpButtonUrl: "https://t.me/YourBotLink" // Default
+    otpButtonText: "Get Number Now", 
+    otpButtonUrl: "https://t.me/YourBotLink" 
 };
 
 // --- HELPERS ---
@@ -204,7 +204,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
                 [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
-                [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }], // New Button
+                [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
             ]
         }
@@ -275,8 +275,9 @@ bot.on('callback_query', async (query) => {
             adminActionState[userId] = 'adding_rate';
             bot.sendMessage(chatId, "💰 Please send: `ServiceName RangePattern Rate` \nExample: `fb 2376211XXX 0.05`", { parse_mode: "Markdown" });
         }
-        else if (data === "admin_otp_btn_settings") { // OTP Button Settings
+        else if (data === "admin_otp_btn_settings") {
             if (userId !== ADMIN_ID) return;
+            // Catch error if message is same to prevent bot crash
             bot.editMessageText(`🔘 **OTP Button Settings**\n\n1. Text: ${config.otpButtonText}\n2. Link: ${config.otpButtonUrl}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
@@ -286,7 +287,7 @@ bot.on('callback_query', async (query) => {
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
                     ]
                 }
-            });
+            }).catch(() => {}); 
         }
         else if (data === "set_otp_btn_text" || data === "set_otp_btn_link") {
             if (userId !== ADMIN_ID) return;
@@ -330,56 +331,7 @@ bot.on('callback_query', async (query) => {
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
                     ]
                 }
-            });
-        }
-        else if (data === "admin_panel") {
-            if (userId !== ADMIN_ID) return;
-            await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-            sendAdminPanel(chatId);
-        }
-        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user"].includes(data)) {
-            if (userId !== ADMIN_ID) return;
-            groupSettingState[userId] = data;
-            bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace(/_/g, ' ').toUpperCase()}`);
-        }
-        else if (data === "admin_view_users") {
-            if (userId !== ADMIN_ID) return;
-            const ids = Object.keys(users);
-            let list = `📊 **Total Users:** ${ids.length}\n\n`;
-            ids.slice(0, 20).forEach((id, i) => {
-                list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)}\n`;
-            });
-            bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
-        }
-        else if (data === "admin_broadcast") {
-            if (userId !== ADMIN_ID) return;
-            broadcastState[userId] = true;
-            bot.sendMessage(chatId, "📢 Send message for broadcast:");
-        }
-        else if (data === "admin_withdraw_on") {
-            if (userId !== ADMIN_ID) return;
-            isWithdrawActive = true;
-            bot.sendMessage(chatId, "✅ Withdrawal system is now ON.");
-        }
-        else if (data === "admin_withdraw_off") {
-            if (userId !== ADMIN_ID) return;
-            isWithdrawActive = false;
-            bot.sendMessage(chatId, "❌ Withdrawal system is now OFF.");
-        }
-        else if (data === "admin_group_settings") {
-            if (userId !== ADMIN_ID) return;
-            bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n\nSelect what to update:`, {
-                chat_id: chatId, message_id: query.message.message_id,
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }],
-                        [{ text: "Update Update Group Link", callback_data: "set_update_link" }],
-                        [{ text: "Update OTP Username", callback_data: "set_otp_user" }],
-                        [{ text: "Update Update Username", callback_data: "set_update_user" }],
-                        [{ text: "🔙 Back", callback_data: "admin_panel" }]
-                    ]
-                }
-            });
+            }).catch(() => {});
         }
         else if (data === "admin_panel") {
             if (userId !== ADMIN_ID) return;
@@ -495,12 +447,10 @@ bot.on('callback_query', async (query) => {
                                     maskedNum = "...." + rawNum.substring(rawNum.length - 2);
                                 }
 
-                                // UPDATED OTP DESIGN BASED ON PHOTO
                                 const groupMsg = `🔔 **OTP ARRIVED SUCCESS**\n\n📱 **SERVICE:** ${sName.toUpperCase()}\n🔢 **NUMBER:** \`+${maskedNum}\`\n💬 **OTP:** \`${otpRes.data.otp}\`\n💰 **REWARD:** $${reward.toFixed(4)}`;
                                 
                                 bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
                                 
-                                // Sending to group with configurable button
                                 bot.sendMessage(config.otpUsername, groupMsg, { 
                                     parse_mode: "Markdown",
                                     reply_markup: {
@@ -663,12 +613,12 @@ bot.on('message', async (msg) => {
         if (type === "set_update_link") config.updateGroup = msgText;
         if (type === "set_otp_user") config.otpUsername = msgText;
         if (type === "set_update_user") config.updateUsername = msgText;
-        if (type === "set_otp_btn_text") config.otpButtonText = msgText; // Handle Button Text
-        if (type === "set_otp_btn_link") config.otpButtonUrl = msgText;  // Handle Button Link
+        if (type === "set_otp_btn_text") config.otpButtonText = msgText; 
+        if (type === "set_otp_btn_link") config.otpButtonUrl = msgText;  
         
         delete groupSettingState[userId];
         return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').replace(/_/g, ' ').toUpperCase()} updated successfully!`, {
-            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_panel" }]] }
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_otp_btn_settings" }]] }
         });
     }
 
@@ -733,7 +683,7 @@ bot.on('message', async (msg) => {
             const amount = parseFloat(msgText.trim());
             if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
             state.amount = amount; state.step = 3;
-            bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \\`${state.targetId}\\`?`, { 
+            bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
                 reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
             });
         }
