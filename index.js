@@ -38,9 +38,9 @@ let config = {
     updateUsername: "@yooosmsupdate",
     otpButtonText: "Get Number Now", 
     otpButtonUrl: "https://t.me/YourBotLink",
-    // Force Join Button Names
     channel1Name: "📢 Join Channel 1",
-    channel2Name: "📢 Join Channel 2"
+    channel2Name: "📢 Join Channel 2",
+    startImage: "https://t.me/SureSmsOfficial/3" // Replace with your image URL
 };
 
 // --- HELPERS ---
@@ -145,7 +145,7 @@ const getFlag = (countryName) => {
         "guatemala": "🇬🇹", "guinea": "🇬🇳", "haiti": "🇭🇹", "honduras": "🇭🇳",
         "hungary": "🇭🇺", "iceland": "🇮🇸", "india": "🇮🇳", "indonesia": "🇮🇩",
         "iran": "🇮🇷", "iraq": "🇮🇶", "ireland": "🇮🇪", "israel": "🇮🇱",
-        "italy": "🇮🇹", "jamaica": "🇯🇲", "japan": "🇯🇵", "jordan": "🇯🇴",
+        "italy": "🇮🇹", "jamaica": "🇮🇲", "japan": "🇯🇵", "jordan": "🇯🇴",
         "kazakhstan": "🇰🇿", "kenya": "🇰🇪", "kuwait": "🇰🇼", "kyrgyzstan": "🇰🇬",
         "laos": "🇱🇦", "latvia": "🇱🇻", "lebanon": "🇱🇧", "libya": "🇱🇾",
         "lithuania": "🇱🇹", "luxembourg": "🇱🇺", "madagascar": "🇲🇬", "malawi": "🇲🇼",
@@ -190,7 +190,12 @@ const sendMainMenu = (chatId, username) => {
     if (users[chatId]?.isBanned) {
         return bot.sendMessage(chatId, "🚫 **You are banned from using this bot.**");
     }
-    bot.sendMessage(chatId, `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`, {
+    
+    const caption = `Welcome! 👋 @${username || 'User'}\n\nClick the Get Number button to receive your number!`;
+    
+    bot.sendPhoto(chatId, config.startImage, {
+        caption: caption,
+        parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [
                 [{ text: "📱 Get Number", callback_data: "menu_get_number" }, { text: "💰 Balance", callback_data: "menu_balance" }],
@@ -209,8 +214,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
-                [{ text: "🚫 Ban User", callback_data: "admin_ban_user" }, { text: "✅ Unban User", callback_data: "admin_unban_user" }],
-                [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
+                [{ text: "⚙️ Edit Force Join", callback_data: "admin_group_settings" }],
                 [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
             ]
@@ -256,16 +260,6 @@ bot.on('callback_query', async (query) => {
             delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
-        }
-        else if (data === "admin_ban_user") {
-            if (userId !== ADMIN_ID) return;
-            adminActionState[userId] = 'banning_user';
-            bot.sendMessage(chatId, "🚫 Send the **User ID** you want to **Ban**:");
-        }
-        else if (data === "admin_unban_user") {
-            if (userId !== ADMIN_ID) return;
-            adminActionState[userId] = 'unbanning_user';
-            bot.sendMessage(chatId, "✅ Send the **User ID** you want to **Unban**:");
         }
         else if (data === "admin_check_range") {
             if (userId !== ADMIN_ID) return;
@@ -379,6 +373,15 @@ bot.on('callback_query', async (query) => {
                         [{ text: "💸 Transfer Balance", callback_data: "transfer_bal" }, { text: "🔙 Back to Menu", callback_data: "main_menu" }]
                     ]
                 }
+            }).catch(() => {
+                bot.sendMessage(chatId, msg, {
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "💸 Transfer Balance", callback_data: "transfer_bal" }, { text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                        ]
+                    }
+                });
             });
         }
         else if (data === "menu_withdraw") {
@@ -389,10 +392,16 @@ bot.on('callback_query', async (query) => {
                 bot.editMessageText(msg, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown", disable_web_page_preview: true,
                     reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+                }).catch(() => {
+                    bot.sendMessage(chatId, msg, {
+                        parse_mode: "Markdown", disable_web_page_preview: true,
+                        reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+                    });
                 });
             } else {
                 const user = users[userId] || { balance: 0 };
-                bot.editMessageText(`💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n\n👇 **Click "Withdraw Now" to start:**`, {
+                const msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n\n👇 **Click "Withdraw Now" to start:**`;
+                bot.editMessageText(msg, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                     reply_markup: {
                         inline_keyboard: [
@@ -400,6 +409,16 @@ bot.on('callback_query', async (query) => {
                             [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
                         ]
                     }
+                }).catch(() => {
+                    bot.sendMessage(chatId, msg, {
+                        parse_mode: "Markdown",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "💸 Withdraw Now", callback_data: "withdraw_now" }],
+                                [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                            ]
+                        }
+                    });
                 });
             }
         }
@@ -408,7 +427,10 @@ bot.on('callback_query', async (query) => {
             if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services available! Admin must add services.", show_alert: true });
             let buttons = serviceKeys.map(s => [{ text: s, callback_data: `service_${s}` }]);
             buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
-            bot.editMessageText("🛠 Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            bot.editMessageText("🛠 Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } })
+            .catch(() => {
+                bot.sendMessage(chatId, "🛠 Select platform:", { reply_markup: { inline_keyboard: buttons } });
+            });
         }
         else if (data.startsWith("service_")) {
             const sName = data.split("_")[1];
@@ -426,7 +448,6 @@ bot.on('callback_query', async (query) => {
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
             try {
-                // Animation - Initial status
                 let loadingText = "Getting Number.";
                 await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
                 
@@ -478,9 +499,17 @@ bot.on('callback_query', async (query) => {
                                     maskedNum = "...." + rawNum.substring(rawNum.length - 2);
                                 }
 
-                                const groupMsg = `🔔 **OTP ARRIVED SUCCESS**\n\n📱 **SERVICE:** ${sName.toUpperCase()}\n🔢 **NUMBER:** \`+${maskedNum}\`\n💬 **OTP:** \`${otpRes.data.otp}\`\n💰 **REWARD:** $${reward.toFixed(4)}`;
+                                const country = getCountryByPattern(rangePattern);
+                                const flag = getFlag(country);
+                                const smsContent = otpRes.data.full_sms || `Code: ${otpRes.data.otp}`;
+
+                                // USER MESSAGE FORMAT
+                                const userMsg = `✅ **OTP Received!**\n\n🌍 **Country :** ${flag} ${country}\n\n📱 **Number :** \`+${numData.number}\`\n\n🔐 **OTP :** \`${otpRes.data.otp}\`\n\n💬 **Message:**\n${smsContent}`;
                                 
-                                bot.sendMessage(userId, `🔔 **OTP RECEIVED!**\n🔢 Number: \`+${numData.number}\`\n💬 OTP: \`${otpRes.data.otp}\`\n💰 Earned: $${reward.toFixed(4)}`, { parse_mode: "Markdown" });
+                                bot.sendMessage(userId, userMsg, { parse_mode: "Markdown" });
+                                
+                                // GROUP MESSAGE FORMAT
+                                const groupMsg = `✅ **OTP Received!**\n\n🌍 **Country :** ${flag} ${country}\n\n📱 **Number :** \`+${maskedNum}\`\n\n🔐 **OTP :** \`${otpRes.data.otp}\`\n\n💬 **Message:**\n${smsContent}`;
                                 
                                 bot.sendMessage(config.otpUsername, groupMsg, { 
                                     parse_mode: "Markdown",
@@ -502,8 +531,8 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "transfer_bal") {
             transferStates[userId] = { step: 1 };
-            bot.editMessageText("💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            bot.sendMessage(chatId, "💸 **Transfer Balance**\n\n🆔 Please enter the **Recipient ID**:", {
+                parse_mode: "Markdown",
                 reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
             });
         }
@@ -513,8 +542,8 @@ bot.on('callback_query', async (query) => {
                 return bot.answerCallbackQuery(query.id, { text: "❌ Not enough balance! Minimum $1.0000", show_alert: true });
             }
             withdrawStates[userId] = { step: 1 };
-            bot.editMessageText(`🏦 *Withdrawal*\n\n💳 Please enter your *Binance UID*:`, {
-                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+            bot.sendMessage(chatId, `🏦 *Withdrawal*\n\n💳 Please enter your *Binance UID*:`, {
+                parse_mode: "Markdown",
                 reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
             });
         }
@@ -524,8 +553,8 @@ bot.on('callback_query', async (query) => {
                 users[userId].balance -= state.amount;
                 if (!users[state.targetId]) users[state.targetId] = { balance: 0, username: 'User', isBanned: false };
                 users[state.targetId].balance += state.amount;
-                bot.editMessageText(`✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                bot.sendMessage(chatId, `✅ **Transfer Successful!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 To: \`${state.targetId}\``, {
+                    parse_mode: "Markdown",
                     reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
                 });
                 bot.sendMessage(state.targetId, `💰 **You received $${state.amount.toFixed(4)} from \`${userId}\`!**`, { parse_mode: "Markdown" }).catch(() => {});
@@ -536,8 +565,8 @@ bot.on('callback_query', async (query) => {
             const state = withdrawStates[userId];
             if (state && users[userId].balance >= state.amount) {
                 users[userId].balance -= state.amount;
-                bot.editMessageText(`✅ **Request Sent!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 UID: \`${state.binanceId}\``, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                bot.sendMessage(chatId, `✅ **Request Sent!**\n\n💵 Amount: $${state.amount.toFixed(4)}\n🆔 UID: \`${state.binanceId}\``, {
+                    parse_mode: "Markdown",
                     reply_markup: { inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "main_menu" }]] }
                 });
                 bot.sendMessage(ADMIN_ID, `🚨 **WITHDRAW REQUEST**\n👤 User: \`${userId}\`\n🆔 UID: \`${state.binanceId}\`\n💰 Amt: $${state.amount.toFixed(4)}`, { parse_mode: "Markdown" }).catch(() => {});
@@ -556,14 +585,14 @@ bot.on('callback_query', async (query) => {
         else if (data === "menu_active") {
             const userNumbers = assignedNumbers.filter(n => n.userId === userId);
             if (userNumbers.length === 0) {
-                bot.editMessageText(`📊 **No Active Numbers**`, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                bot.sendMessage(chatId, `📊 **No Active Numbers**`, {
+                    parse_mode: "Markdown",
                     reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
                 });
             } else {
                 let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
                 buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
-                bot.editMessageText("📱 **Your Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+                bot.sendMessage(chatId, "📱 **Your Active Numbers:**", { reply_markup: { inline_keyboard: buttons } });
             }
         }
     } catch (e) { console.log("Callback Error:", e); }
@@ -579,34 +608,8 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false };
     else users[userId].username = msg.from.username || 'User';
 
-    if (users[userId].isBanned && userId !== ADMIN_ID) {
-        return; // Silent ignore for banned users
-    }
-
     if (chatId === ADMIN_ID && adminActionState[userId]) {
         const action = adminActionState[userId];
-        if (action === 'banning_user') {
-            const targetId = msgText.trim();
-            if (users[targetId]) {
-                users[targetId].isBanned = true;
-                bot.sendMessage(chatId, `✅ User \`${targetId}\` has been **Banned**.`, { parse_mode: "Markdown" });
-            } else {
-                bot.sendMessage(chatId, "❌ User not found in database.");
-            }
-            delete adminActionState[userId];
-            return;
-        }
-        if (action === 'unbanning_user') {
-            const targetId = msgText.trim();
-            if (users[targetId]) {
-                users[targetId].isBanned = false;
-                bot.sendMessage(chatId, `✅ User \`${targetId}\` has been **Unbanned**.`, { parse_mode: "Markdown" });
-            } else {
-                bot.sendMessage(chatId, "❌ User not found in database.");
-            }
-            delete adminActionState[userId];
-            return;
-        }
         if (action === 'adding_service') {
             const sName = msgText.trim();
             if (sName) { 
@@ -662,6 +665,23 @@ bot.on('message', async (msg) => {
         }
         delete broadcastState[userId];
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
+    }
+
+    if (chatId === ADMIN_ID && groupSettingState[userId]) {
+        const type = groupSettingState[userId];
+        if (type === "set_otp_link") config.otpGroup = msgText;
+        if (type === "set_update_link") config.updateGroup = msgText;
+        if (type === "set_otp_user") config.otpUsername = msgText;
+        if (type === "set_update_user") config.updateUsername = msgText;
+        if (type === "set_otp_btn_text") config.otpButtonText = msgText; 
+        if (type === "set_otp_btn_link") config.otpButtonUrl = msgText;
+        if (type === "set_update_btn_name") config.channel1Name = msgText;
+        if (type === "set_otp_btn_name") config.channel2Name = msgText;
+        
+        delete groupSettingState[userId];
+        return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').replace(/_/g, ' ').toUpperCase()} updated successfully!`, {
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_group_settings" }]] }
+        });
     }
 
     if (chatId === ADMIN_ID && groupSettingState[userId]) {
