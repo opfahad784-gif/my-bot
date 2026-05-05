@@ -209,8 +209,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
-                [{ text: "🚫 Ban User", callback_data: "admin_ban_user" }, { text: "✅ Unban User", callback_data: "admin_unban_user" }],
-                [{ text: "⚙️ Group Settings", callback_data: "admin_group_settings" }],
+                [{ text: "⚙️ Edit Force Join", callback_data: "admin_group_settings" }], // Force Join Edit Button
                 [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
             ]
@@ -256,16 +255,6 @@ bot.on('callback_query', async (query) => {
             delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
-        }
-        else if (data === "admin_ban_user") {
-            if (userId !== ADMIN_ID) return;
-            adminActionState[userId] = 'banning_user';
-            bot.sendMessage(chatId, "🚫 Send the **User ID** you want to **Ban**:");
-        }
-        else if (data === "admin_unban_user") {
-            if (userId !== ADMIN_ID) return;
-            adminActionState[userId] = 'unbanning_user';
-            bot.sendMessage(chatId, "✅ Send the **User ID** you want to **Unban**:");
         }
         else if (data === "admin_check_range") {
             if (userId !== ADMIN_ID) return;
@@ -579,34 +568,8 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false };
     else users[userId].username = msg.from.username || 'User';
 
-    if (users[userId].isBanned && userId !== ADMIN_ID) {
-        return; // Silent ignore for banned users
-    }
-
     if (chatId === ADMIN_ID && adminActionState[userId]) {
         const action = adminActionState[userId];
-        if (action === 'banning_user') {
-            const targetId = msgText.trim();
-            if (users[targetId]) {
-                users[targetId].isBanned = true;
-                bot.sendMessage(chatId, `✅ User \`${targetId}\` has been **Banned**.`, { parse_mode: "Markdown" });
-            } else {
-                bot.sendMessage(chatId, "❌ User not found in database.");
-            }
-            delete adminActionState[userId];
-            return;
-        }
-        if (action === 'unbanning_user') {
-            const targetId = msgText.trim();
-            if (users[targetId]) {
-                users[targetId].isBanned = false;
-                bot.sendMessage(chatId, `✅ User \`${targetId}\` has been **Unbanned**.`, { parse_mode: "Markdown" });
-            } else {
-                bot.sendMessage(chatId, "❌ User not found in database.");
-            }
-            delete adminActionState[userId];
-            return;
-        }
         if (action === 'adding_service') {
             const sName = msgText.trim();
             if (sName) { 
