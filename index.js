@@ -37,7 +37,10 @@ let config = {
     otpUsername: "@yoosms_otp",
     updateUsername: "@yooosmsupdate",
     otpButtonText: "Get Number Now", 
-    otpButtonUrl: "https://t.me/YourBotLink" 
+    otpButtonUrl: "https://t.me/YourBotLink",
+    // Force Join Button Names
+    channel1Name: "📢 Join Channel 1",
+    channel2Name: "📢 Join Channel 2"
 };
 
 // --- HELPERS ---
@@ -175,8 +178,8 @@ const sendJoinMessage = (chatId) => {
         parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [
-                [{ text: "📢 Join Channel 1", url: config.updateGroup }],
-                [{ text: "📢 Join Channel 2", url: config.otpGroup }],
+                [{ text: config.channel1Name, url: config.updateGroup }],
+                [{ text: config.channel2Name, url: config.otpGroup }],
                 [{ text: "✅ I Have Joined", callback_data: "check_join" }]
             ]
         }
@@ -277,7 +280,6 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_otp_btn_settings") {
             if (userId !== ADMIN_ID) return;
-            // Catch error if message is same to prevent bot crash
             bot.editMessageText(`🔘 **OTP Button Settings**\n\n1. Text: ${config.otpButtonText}\n2. Link: ${config.otpButtonUrl}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
@@ -320,14 +322,13 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_group_settings") {
             if (userId !== ADMIN_ID) return;
-            bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n\nSelect what to update:`, {
+            bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n   Btn Name: ${config.channel2Name}\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n   Btn Name: ${config.channel1Name}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }],
-                        [{ text: "Update Update Group Link", callback_data: "set_update_link" }],
-                        [{ text: "Update OTP Username", callback_data: "set_otp_user" }],
-                        [{ text: "Update Update Username", callback_data: "set_update_user" }],
+                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }, { text: "Update OTP Btn Name", callback_data: "set_otp_btn_name" }],
+                        [{ text: "Update Update Group Link", callback_data: "set_update_link" }, { text: "Update Update Btn Name", callback_data: "set_update_btn_name" }],
+                        [{ text: "Update OTP Username", callback_data: "set_otp_user" }, { text: "Update Update Username", callback_data: "set_update_user" }],
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
                     ]
                 }
@@ -338,10 +339,10 @@ bot.on('callback_query', async (query) => {
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendAdminPanel(chatId);
         }
-        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user"].includes(data)) {
+        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user", "set_otp_btn_name", "set_update_btn_name"].includes(data)) {
             if (userId !== ADMIN_ID) return;
             groupSettingState[userId] = data;
-            bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace('_', ' ').toUpperCase()}`);
+            bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace(/_/g, ' ').toUpperCase()}`);
         }
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
@@ -407,10 +408,22 @@ bot.on('callback_query', async (query) => {
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
             try {
+                // Animation - Initial status
+                let loadingText = "Getting Number.";
+                await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                
+                let animationInterval = setInterval(() => {
+                    if (loadingText === "Getting Number....") loadingText = "Getting Number.";
+                    else loadingText += ".";
+                    bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" }).catch(() => {});
+                }, 800);
+
                 const response = await axios.post(`${NEXA_BASE_URL}numbers/get?api_key=${NEXA_API_KEY}`, {
                     range: rangePattern,
                     format: "normal"
                 });
+
+                clearInterval(animationInterval);
 
                 if (response.data && response.data.success) {
                     const numData = {
@@ -463,7 +476,7 @@ bot.on('callback_query', async (query) => {
                         } catch (err) { console.log("OTP Check Err:", err); }
                     }, 2000);
                 } else {
-                    bot.answerCallbackQuery(query.id, { text: "⚠️ Number Request Failed!", show_alert: true });
+                    bot.editMessageText("⚠️ Number Request Failed! Please try again.", { chat_id: chatId, message_id: query.message.message_id });
                 }
             } catch (error) {
                 bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
@@ -614,11 +627,13 @@ bot.on('message', async (msg) => {
         if (type === "set_otp_user") config.otpUsername = msgText;
         if (type === "set_update_user") config.updateUsername = msgText;
         if (type === "set_otp_btn_text") config.otpButtonText = msgText; 
-        if (type === "set_otp_btn_link") config.otpButtonUrl = msgText;  
+        if (type === "set_otp_btn_link") config.otpButtonUrl = msgText;
+        if (type === "set_update_btn_name") config.channel1Name = msgText;
+        if (type === "set_otp_btn_name") config.channel2Name = msgText;
         
         delete groupSettingState[userId];
         return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').replace(/_/g, ' ').toUpperCase()} updated successfully!`, {
-            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_otp_btn_settings" }]] }
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_group_settings" }]] }
         });
     }
 
