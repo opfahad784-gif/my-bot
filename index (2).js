@@ -190,7 +190,6 @@ const sendMainMenu = (chatId, username) => {
         return bot.sendMessage(chatId, "🚫 **You are banned from using this bot.**");
     }
     
-    // NEW START MESSAGE UI AS PER REQUEST
     const welcomeMsg = `👋 **Hello @${username || 'User'}!**\n\n` +
                        `🚀 **Welcome to YOOSMS Bot**\n` +
                        `━━━━━━━━━━━━━━━━━━\n` +
@@ -343,7 +342,7 @@ bot.on('callback_query', async (query) => {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }, { text: "Update OTP Btn Name", callback_data: "set_otp_btn_name" }],
+                        [{ text: "Update OTP Group Link", callback_data: "set_otp_btn_name" }],
                         [{ text: "Update Update Group Link", callback_data: "set_update_link" }, { text: "Update Update Btn Name", callback_data: "set_update_btn_name" }],
                         [{ text: "Update OTP Username", callback_data: "set_otp_user" }, { text: "Update Update Username", callback_data: "set_update_user" }],
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
@@ -425,7 +424,6 @@ bot.on('callback_query', async (query) => {
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
             try {
-                // Animation - Initial status
                 let loadingText = "Getting Number.";
                 await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
                 
@@ -469,7 +467,6 @@ bot.on('callback_query', async (query) => {
                                 
                                 bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                 
-                                // NEW USER OTP MESSAGE DESIGN
                                 const country = getCountryByPattern(numData.range);
                                 const flag = getFlag(country);
                                 
@@ -481,7 +478,6 @@ bot.on('callback_query', async (query) => {
 
                                 bot.sendMessage(userId, userOtpMsg, { parse_mode: "Markdown" });
 
-                                // NEW GROUP OTP MESSAGE DESIGN (MASKED)
                                 const rawNum = numData.number.toString();
                                 let maskedNum;
                                 if (rawNum.length > 8) {
@@ -702,6 +698,7 @@ bot.on('message', async (msg) => {
 
     if (msgText === '/start') {
         if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
+        // FIXED: query.from.username change to msg.from.username
         return sendMainMenu(chatId, msg.from.username);
     }
 
