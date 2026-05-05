@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 // --- CONFIG ---
-const TOKEN = '8413633586:AAHAX5uBc_Dc2H8VrakF3lbLPFkM1F3wpIE'; 
+const TOKEN = '8413633586:AAFKb3aA6XCoYx_E3ricqSoYo2wk5nb_pOU'; 
 const ADMIN_ID = 7488161246;
 
 // UPDATED NEXA CONFIG
@@ -342,7 +342,7 @@ bot.on('callback_query', async (query) => {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "Update OTP Group Link", callback_data: "set_otp_btn_name" }],
+                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }, { text: "Update OTP Btn Name", callback_data: "set_otp_btn_name" }],
                         [{ text: "Update Update Group Link", callback_data: "set_update_link" }, { text: "Update Update Btn Name", callback_data: "set_update_btn_name" }],
                         [{ text: "Update OTP Username", callback_data: "set_otp_user" }, { text: "Update Update Username", callback_data: "set_update_user" }],
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
@@ -698,7 +698,7 @@ bot.on('message', async (msg) => {
 
     if (msgText === '/start') {
         if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
-        // FIXED: query.from.username change to msg.from.username
+        // FIXED ERROR: 'query' is not defined. Using 'msg.from.username' instead.
         return sendMainMenu(chatId, msg.from.username);
     }
 
