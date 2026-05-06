@@ -342,7 +342,7 @@ bot.on('callback_query', async (query) => {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "Update OTP Group Link", callback_data: "set_otp_btn_name" }],
+                        [{ text: "Update OTP Group Link", callback_data: "set_otp_link" }, { text: "Update OTP Btn Name", callback_data: "set_otp_btn_name" }],
                         [{ text: "Update Update Group Link", callback_data: "set_update_link" }, { text: "Update Update Btn Name", callback_data: "set_update_btn_name" }],
                         [{ text: "Update OTP Username", callback_data: "set_otp_user" }, { text: "Update Update Username", callback_data: "set_update_user" }],
                         [{ text: "🔙 Back", callback_data: "admin_panel" }]
@@ -441,6 +441,11 @@ bot.on('callback_query', async (query) => {
                 clearInterval(animationInterval);
 
                 if (response.data && response.data.success) {
+                    const country = getCountryByPattern(rangePattern);
+                    const flag = getFlag(country);
+                    const serviceUpper = sName.toUpperCase();
+                    const reward = services[sName]?.rates[rangePattern] || 0.0030;
+
                     const numData = {
                         service: sName,
                         range: rangePattern,
@@ -452,9 +457,21 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    bot.editMessageText(`✅ *Number Assigned!* \n\n📱 *${sName}* | \`+${numData.number}\` \n\n⏳ Waiting for OTP...`, {
+                    // --- ASSIGNED UI (PHOTO 1 ONUJAYI) ---
+                    const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
+                                      `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
+                                      `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
+
+                    bot.editMessageText(assignedMsg, {
                         chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                        reply_markup: { inline_keyboard: [[{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]] }
+                        reply_markup: { 
+                            inline_keyboard: [
+                                [{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], 
+                                [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
+                            ] 
+                        }
                     });
 
                     let checkOTP = setInterval(async () => {
@@ -462,36 +479,26 @@ bot.on('callback_query', async (query) => {
                             const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`);
                             if (otpRes.data && otpRes.data.success && otpRes.data.otp) {
                                 clearInterval(checkOTP);
-                                const reward = services[sName]?.rates[rangePattern] || 0.0030;
                                 users[userId].balance += reward;
                                 
                                 bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                 
-                                const country = getCountryByPattern(numData.range);
-                                const flag = getFlag(country);
-                                const serviceUpper = sName.toUpperCase();
-                                
-                                // --- USER UI FORMAT (APNAR CHAHIDA ONUJAYI) ---
+                                // --- USER RECEIVED UI (PHOTO 2 ONUJAYI) ---
                                 const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                   `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                                   `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
                                                   `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n\n` +
-                                                  `${otpRes.data.full_sms || 'No message content'}`;
+                                                  `Your verification code is: ${otpRes.data.otp}. Do not share with anyone.`;
 
                                 bot.sendMessage(userId, userOtpMsg, { parse_mode: "Markdown" });
 
-                                // --- GROUP UI FORMAT (APNAR CHAHIDA ONUJAYI) ---
+                                // --- GROUP UI ---
                                 const rawNum = numData.number.toString();
-                                let maskedNum;
-                                if (rawNum.length > 8) {
-                                    maskedNum = rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4);
-                                } else {
-                                    maskedNum = "••••" + rawNum.substring(rawNum.length - 2);
-                                }
+                                let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                 const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                  `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
-                                                 `☎️ ᯓ𝗡𝘂𝗺𝗯𝚎𝗿 » \`+${maskedNum}\`\n` +
+                                                 `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                  `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                  `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
                                 
