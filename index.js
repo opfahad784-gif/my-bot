@@ -215,8 +215,9 @@ const sendAdminPanel = (chatId) => {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
-                [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "💰 Add Rate", callback_data: "admin_add_rate" }],
-                [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
+                [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "🗑 Delete Service", callback_data: "admin_del_service" }],
+                [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
+                [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
                 [{ text: "⚙️ Edit Force Join", callback_data: "admin_group_settings" }],
                 [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
@@ -288,6 +289,11 @@ bot.on('callback_query', async (query) => {
             if (userId !== ADMIN_ID) return;
             adminActionState[userId] = 'adding_service';
             bot.sendMessage(chatId, "➕ Please send the **Name** of the service (e.g., Telegram):");
+        }
+        else if (data === "admin_del_service") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'deleting_service';
+            bot.sendMessage(chatId, "🗑 Please send the **Name** of the service you want to delete:");
         }
         else if (data === "admin_add_rate") {
             if (userId !== ADMIN_ID) return;
@@ -486,7 +492,7 @@ bot.on('callback_query', async (query) => {
                                 // --- USER RECEIVED UI ---
                                 const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                   `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
-                                                  `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
+                                                  `☎️ ᯓ𝗡𝘂𝗺𝗯𝚎𝗿 » \`${numData.number}\`\n` +
                                                   `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n\n` +
                                                   `Your verification code is: ${otpRes.data.otp}. Do not share with anyone.`;
 
@@ -498,7 +504,7 @@ bot.on('callback_query', async (query) => {
 
                                 const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                  `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
-                                                 `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
+                                                 `☎️ ᯓ𝗡𝘂𝗺𝗯𝚎𝗿 » \`+${maskedNum}\`\n` +
                                                  `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                  `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
                                 
@@ -610,6 +616,17 @@ bot.on('message', async (msg) => {
             delete adminActionState[userId];
             return;
         }
+        if (action === 'deleting_service') {
+            const sName = msgText.trim();
+            if (services[sName]) {
+                delete services[sName];
+                bot.sendMessage(chatId, `🗑 Service **${sName}** has been deleted.`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, `❌ Service **${sName}** not found.`);
+            }
+            delete adminActionState[userId];
+            return;
+        }
         if (action === 'adding_rate') {
             const parts = msgText.split(' ');
             if (parts.length >= 3) {
@@ -636,7 +653,6 @@ bot.on('message', async (msg) => {
                 const pattern = parts.slice(1).join(' ');
                 
                 if (services[sName]) {
-                    // Check if pattern exists (case insensitive comparison optional, using exact match based on add_rate)
                     const patternIndex = services[sName].countries.indexOf(pattern);
                     if (patternIndex > -1) {
                         services[sName].countries.splice(patternIndex, 1);
