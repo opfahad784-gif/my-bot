@@ -457,7 +457,7 @@ bot.on('callback_query', async (query) => {
                     
                     assignedNumbers.push(numData);
 
-                    // --- ASSIGNED UI (PHOTO 1 ONUJAYI) ---
+                    // --- ASSIGNED UI ---
                     const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
                                       `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                       `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
@@ -483,7 +483,7 @@ bot.on('callback_query', async (query) => {
                                 
                                 bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                 
-                                // --- USER RECEIVED UI (PHOTO 2 ONUJAYI) ---
+                                // --- USER RECEIVED UI ---
                                 const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                   `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                                   `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
@@ -632,11 +632,19 @@ bot.on('message', async (msg) => {
         if (action === 'deleting_range') {
             const parts = msgText.trim().split(/\s+/);
             if (parts.length >= 2) {
-                const s = parts[0].toLowerCase(), c = parts.slice(1).join(' ').toLowerCase();
-                if (services[parts[0]]) {
-                    services[parts[0]].countries = services[parts[0]].countries.filter(p => p.toLowerCase() !== c);
-                    delete services[parts[0]].rates[parts.slice(1).join(' ')];
-                    bot.sendMessage(chatId, `🗑 Deleted range **${c}** from **${parts[0]}**.`, { parse_mode: "Markdown" });
+                const sName = parts[0];
+                const pattern = parts.slice(1).join(' ');
+                
+                if (services[sName]) {
+                    // Check if pattern exists (case insensitive comparison optional, using exact match based on add_rate)
+                    const patternIndex = services[sName].countries.indexOf(pattern);
+                    if (patternIndex > -1) {
+                        services[sName].countries.splice(patternIndex, 1);
+                        delete services[sName].rates[pattern];
+                        bot.sendMessage(chatId, `🗑 Deleted range **${pattern}** from **${sName}**.`, { parse_mode: "Markdown" });
+                    } else {
+                        bot.sendMessage(chatId, `❌ Range **${pattern}** not found in **${sName}**.`);
+                    }
                 } else {
                     bot.sendMessage(chatId, "❌ Service not found.");
                 }
