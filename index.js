@@ -30,6 +30,7 @@ let isWithdrawActive = false;
 let broadcastState = {}; 
 let groupSettingState = {};
 let adminActionState = {}; 
+let extraAdmins = []; // <--- New Admin List
 
 let config = {
     otpGroup: "https://t.me/yoosms_otp", 
@@ -43,6 +44,10 @@ let config = {
 };
 
 // --- HELPERS ---
+const isAdmin = (userId) => {
+    return userId === ADMIN_ID || extraAdmins.includes(Number(userId));
+};
+
 const checkJoin = async (userId) => {
     try {
         const res1 = await bot.getChatMember(config.otpUsername, userId);
@@ -64,6 +69,7 @@ const findUser = (input) => {
     return null;
 };
 
+// ... (getCountryByPattern and getFlag functions remain exactly the same as your code)
 const getCountryByPattern = (pattern) => {
     const patternMap = {
         "93": "Afghanistan", "355": "Albania", "213": "Algeria", "1684": "American Samoa", "376": "Andorra",
@@ -218,6 +224,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "🗑 Delete Service", callback_data: "admin_del_service" }],
                 [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
+                [{ text: "👤 Edit Admin", callback_data: "admin_edit_manager" }], // <--- New Button
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
                 [{ text: "⚙️ Edit Force Join", callback_data: "admin_group_settings" }],
                 [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
@@ -236,7 +243,7 @@ bot.on('callback_query', async (query) => {
     try {
         await bot.answerCallbackQuery(query.id);
 
-        if (users[userId]?.isBanned && userId !== ADMIN_ID) {
+        if (users[userId]?.isBanned && !isAdmin(userId)) {
             return bot.sendMessage(chatId, "🚫 **You are banned.**");
         }
 
@@ -252,7 +259,7 @@ bot.on('callback_query', async (query) => {
         }
 
         const isJoined = await checkJoin(userId);
-        if (!isJoined && userId !== ADMIN_ID) {
+        if (!isJoined && !isAdmin(userId)) {
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             return sendJoinMessage(chatId);
         }
@@ -266,8 +273,33 @@ bot.on('callback_query', async (query) => {
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
-        else if (data === "admin_check_range") {
+        // --- NEW ADMIN MANAGER CALLBACKS ---
+        else if (data === "admin_edit_manager") {
             if (userId !== ADMIN_ID) return;
+            bot.editMessageText("👤 **Admin Management**\nChoose an action:", {
+                chat_id: chatId, message_id: query.message.message_id,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "➕ Add Admin", callback_data: "admin_add_new" }, { text: "➖ Remove Admin", callback_data: "admin_remove_old" }],
+                        [{ text: "🔙 Back", callback_data: "admin_panel" }]
+                    ]
+                }
+            });
+        }
+        else if (data === "admin_add_new") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'adding_new_admin';
+            bot.sendMessage(chatId, "👤 Send the **User ID** or **Username** to add as Admin:");
+        }
+        else if (data === "admin_remove_old") {
+            if (userId !== ADMIN_ID) return;
+            adminActionState[userId] = 'removing_admin';
+            bot.sendMessage(chatId, "👤 Send the **User ID** or **Username** to remove from Admin:");
+        }
+        // --- END NEW CALLBACKS ---
+
+        else if (data === "admin_check_range") {
+            if (!isAdmin(userId)) return;
             try {
                 const res = await axios.get(`${NEXA_BASE_URL}getServices?api_key=${NEXA_API_KEY}`);
                 let msg = "📊 **Nexa Service Inventory:**\n\n";
@@ -281,27 +313,27 @@ bot.on('callback_query', async (query) => {
             }
         }
         else if (data === "admin_del_num") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             adminActionState[userId] = 'deleting_range';
             bot.sendMessage(chatId, "🗑 Please send: `ServiceName RangePattern` \nExample: `telegram 992`", { parse_mode: "Markdown" });
         }
         else if (data === "admin_add_service") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             adminActionState[userId] = 'adding_service';
             bot.sendMessage(chatId, "➕ Please send the **Name** of the service (e.g., Telegram):");
         }
         else if (data === "admin_del_service") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             adminActionState[userId] = 'deleting_service';
             bot.sendMessage(chatId, "🗑 Please send the **Name** of the service you want to delete:");
         }
         else if (data === "admin_add_rate") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             adminActionState[userId] = 'adding_rate';
             bot.sendMessage(chatId, "💰 Please send: `ServiceName RangePattern Rate` \nExample: `fb 2376211XXX 0.05`", { parse_mode: "Markdown" });
         }
         else if (data === "admin_otp_btn_settings") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             bot.editMessageText(`🔘 **OTP Button Settings**\n\n1. Text: ${config.otpButtonText}\n2. Link: ${config.otpButtonUrl}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
@@ -314,12 +346,12 @@ bot.on('callback_query', async (query) => {
             }).catch(() => {}); 
         }
         else if (data === "set_otp_btn_text" || data === "set_otp_btn_link") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             groupSettingState[userId] = data;
             bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace(/_/g, ' ').toUpperCase()}`);
         }
         else if (data === "admin_view_users") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             const ids = Object.keys(users);
             let list = `📊 **Total Users:** ${ids.length}\n\n`;
             ids.slice(0, 20).forEach((id, i) => {
@@ -328,22 +360,22 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
         }
         else if (data === "admin_broadcast") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             broadcastState[userId] = true;
             bot.sendMessage(chatId, "📢 Send message for broadcast:");
         }
         else if (data === "admin_withdraw_on") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             isWithdrawActive = true;
             bot.sendMessage(chatId, "✅ Withdrawal system is now ON.");
         }
         else if (data === "admin_withdraw_off") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             isWithdrawActive = false;
             bot.sendMessage(chatId, "❌ Withdrawal system is now OFF.");
         }
         else if (data === "admin_group_settings") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n   Btn Name: ${config.channel2Name}\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n   Btn Name: ${config.channel1Name}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
                 reply_markup: {
@@ -357,15 +389,16 @@ bot.on('callback_query', async (query) => {
             }).catch(() => {});
         }
         else if (data === "admin_panel") {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendAdminPanel(chatId);
         }
         else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user", "set_otp_btn_name", "set_update_btn_name"].includes(data)) {
-            if (userId !== ADMIN_ID) return;
+            if (!isAdmin(userId)) return;
             groupSettingState[userId] = data;
             bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace(/_/g, ' ').toUpperCase()}`);
         }
+        // ... (remaining callback logic for numbers/menu stays the same)
         else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
             let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
@@ -605,8 +638,38 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false };
     else users[userId].username = msg.from.username || 'User';
 
-    if (chatId === ADMIN_ID && adminActionState[userId]) {
+    if (isAdmin(userId) && adminActionState[userId]) {
         const action = adminActionState[userId];
+        
+        // --- NEW ADMIN MANAGER LOGIC ---
+        if (action === 'adding_new_admin') {
+            const target = findUser(msgText.trim());
+            if (target) {
+                if (!extraAdmins.includes(Number(target.id))) {
+                    extraAdmins.push(Number(target.id));
+                    bot.sendMessage(chatId, `✅ **${target.username}** (\`${target.id}\`) is now an Admin.`, { parse_mode: "Markdown" });
+                } else {
+                    bot.sendMessage(chatId, "❌ User is already an admin.");
+                }
+            } else {
+                bot.sendMessage(chatId, "❌ User not found in database.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'removing_admin') {
+            const target = findUser(msgText.trim());
+            if (target) {
+                extraAdmins = extraAdmins.filter(a => a !== Number(target.id));
+                bot.sendMessage(chatId, `🗑 **${target.username}** removed from Admin list.`);
+            } else {
+                bot.sendMessage(chatId, "❌ User not found.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        // --- END NEW ADMIN MANAGER LOGIC ---
+
         if (action === 'adding_service') {
             const sName = msgText.trim();
             if (sName) { 
@@ -672,7 +735,7 @@ bot.on('message', async (msg) => {
         }
     }
 
-    if (chatId === ADMIN_ID && broadcastState[userId]) {
+    if (isAdmin(userId) && broadcastState[userId]) {
         const userList = Object.keys(users);
         let success = 0;
         for (const id of userList) {
@@ -682,7 +745,7 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
     }
 
-    if (chatId === ADMIN_ID && groupSettingState[userId]) {
+    if (isAdmin(userId) && groupSettingState[userId]) {
         const type = groupSettingState[userId];
         if (type === "set_otp_link") config.otpGroup = msgText;
         if (type === "set_update_link") config.updateGroup = msgText;
@@ -699,7 +762,7 @@ bot.on('message', async (msg) => {
         });
     }
 
-    if (chatId === ADMIN_ID) {
+    if (isAdmin(userId)) {
         if (msgText === '/admin') return sendAdminPanel(chatId);
         if (msgText.startsWith('/seeuser')) {
             const parts = msgText.split(' ');
@@ -731,7 +794,7 @@ bot.on('message', async (msg) => {
     }
 
     if (msgText === '/start') {
-        if (!(await checkJoin(userId)) && userId !== ADMIN_ID) return sendJoinMessage(chatId);
+        if (!(await checkJoin(userId)) && !isAdmin(userId)) return sendJoinMessage(chatId);
         return sendMainMenu(chatId, msg.from.username);
     }
 
