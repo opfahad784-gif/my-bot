@@ -10,11 +10,11 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 // --- CONFIG ---
-const TOKEN = 'Yourbottokenafyck';
+const TOKEN = '8413633586:AAHAX5uBc_Dc2H8VrakF3lbLPFkM1F3wpIE';
 const ADMIN_ID = 7488161246;
 
 // UPDATED NEXA CONFIG
-const NEXA_API_KEY = 'nxa_';
+const NEXA_API_KEY = 'nxa_a0c78ce02c9a7cee35d9886f72d4c42935a63863';
 const NEXA_BASE_URL = 'http://185.190.142.81/api/v1/';
 
 const bot = new TelegramBot(TOKEN, { polling: true });
@@ -231,7 +231,7 @@ const sendMainMenu = (chatId, username) => {
     }
     
     const welcomeMsg = `👋 **Hello @${username || 'User'}!**\n\n` +
-                       `🚀 **Welcome to NH NUMBER BOT 🔥⚡ Bot**\n` +
+                       `🚀 **Welcome to YOOO_SMS⚡ Bot**\n` +
                        `━━━━━━━━━━━━━━━━━━\n` +
                        `💰 **Balance:** $${(users[chatId]?.balance || 0).toFixed(4)}\n` +
                        `📱 **Total Active:** ${assignedNumbers.filter(n => n.userId === chatId).length}\n` +
