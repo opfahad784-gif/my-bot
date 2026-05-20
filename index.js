@@ -718,9 +718,9 @@ bot.on('callback_query', async (query) => {
                         assignedNumbers.push(numData);
 
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                          `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                          `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝗻𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -766,7 +766,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝚘𝒖𝚗𝒕𝒓𝚢 » ${country}\n` +
+                                                     `${flag} ᯓ𝙲𝚘𝒖nun𝒕𝒓𝚢 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -876,10 +876,10 @@ bot.on('message', async (msg) => {
     if (isAdmin(userId) && msgText.startsWith('/bulk')) {
         const parts = msgText.split(' ');
         if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulk servicename countryname` (As command or file caption)");
-        const service = parts[1];
-        const country = parts[2];
+        const service = parts[1].trim();
+        const country = parts[2].trim();
 
-        // If it's an uploaded file
+        // If it's an uploaded file (.txt)
         if (msg.document) {
             try {
                 const fileLink = await bot.getFileLink(msg.document.file_id);
@@ -889,7 +889,8 @@ bot.on('message', async (msg) => {
                     let data = '';
                     res.on('data', (chunk) => { data += chunk; });
                     res.on('end', () => {
-                        const lines = data.split('\n');
+                        // Replace Windows line-breaks and split cleanly
+                        const lines = data.replace(/\r/g, '').split('\n');
                         let count = 0;
                         lines.forEach(line => {
                             if (!line.trim()) return;
@@ -905,7 +906,7 @@ bot.on('message', async (msg) => {
                                 count++;
                             }
                         });
-                        bot.sendMessage(chatId, `✅ File uploaded raw data success!\nAdded ${count} numbers for ${service} (${country}) successfully!`);
+                        bot.sendMessage(chatId, `✅ Bulk file processed successfully!\nAdded ${count} manual numbers for **${service} (${country})** pool!`);
                     });
                 }).on('error', (e) => {
                     bot.sendMessage(chatId, "❌ File content download korte sombhob hoyni.");
@@ -915,9 +916,9 @@ bot.on('message', async (msg) => {
                 return bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
             }
         } else {
-            // Direct text copy-paste method
+            // Direct text copy-paste method setup
             adminActionState[userId] = { action: 'bulk_data', service: service, country: country };
-            return bot.sendMessage(chatId, `✅ Mode set for **${service} (${country})**.\nNow send the list of numbers (one per line, format: number:id).`);
+            return bot.sendMessage(chatId, `✅ Text entry mode set for **${service} (${country})**.\nNow send the list of numbers (one per line, format: number:id).`);
         }
     }
 
@@ -925,11 +926,11 @@ bot.on('message', async (msg) => {
     if (isAdmin(userId) && msgText.startsWith('/bulkdel')) {
         const parts = msgText.split(' ');
         if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulkdel servicename countryname`");
-        const service = parts[1];
-        const country = parts[2];
+        const service = parts[1].trim();
+        const country = parts[2].trim();
 
         const initialCount = manualNumbers.length;
-        manualNumbers = manualNumbers.filter(n => !(n.service === service && n.country === country));
+        manualNumbers = manualNumbers.filter(n => !(n.service.toLowerCase() === service.toLowerCase() && n.country.toLowerCase() === country.toLowerCase()));
         const deletedCount = initialCount - manualNumbers.length;
 
         return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers of **${service} (${country})** pool completely!`);
@@ -939,10 +940,11 @@ bot.on('message', async (msg) => {
         const state = adminActionState[userId];
         
         // Handle Bulk Data Input via text lines
-        if (state.action === 'bulk_data') {
-            const lines = msgText.split('\n');
+        if (state && state.action === 'bulk_data') {
+            const lines = msgText.replace(/\r/g, '').split('\n');
             let count = 0;
             lines.forEach(line => {
+                if (!line.trim()) return;
                 const [number, id] = line.split(':');
                 if (number && id) {
                     manualNumbers.push({ number: number.trim(), number_id: id.trim(), service: state.service, country: state.country, isUsed: false });
@@ -953,7 +955,7 @@ bot.on('message', async (msg) => {
             return bot.sendMessage(chatId, `✅ Added ${count} numbers for ${state.service} (${state.country}) successfully!`);
         }
 
-        const action = state; 
+        const action = adminActionState[userId]; 
         
         if (action === 'setting_fake_interval') {
             const secs = parseInt(msgText.trim());
