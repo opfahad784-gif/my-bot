@@ -24,7 +24,7 @@ let users = {};
 let services = {};
 let availableNumbers = [];
 let assignedNumbers = [];
-let manualNumbers = []; // New storage for bulk numbers
+let manualNumbers = []; // Storage for bulk numbers
 let transferStates = {};
 let withdrawStates = {};
 let isWithdrawActive = false;
@@ -300,7 +300,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "🗑 Delete Service", callback_data: "admin_del_service" }],
                 [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
-                [{ text: "📦 Bulk Add Numbers", callback_data: "admin_bulk_add" }], // Added
+                [{ text: "📦 Bulk Add Numbers", callback_data: "admin_bulk_add" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "👤 Edit Admin", callback_data: "admin_edit_manager" }], 
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
@@ -356,7 +356,7 @@ bot.on('callback_query', async (query) => {
         else if (data === "admin_bulk_add") {
             if (!isAdmin(userId)) return;
             adminActionState[userId] = 'bulk_step1';
-            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: `/bulk servicename countryname`\nSend this command first.");
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: `/bulk servicename countryname`\nSend this command or upload a .txt file with this command as caption.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -655,7 +655,7 @@ bot.on('callback_query', async (query) => {
                     service: sName,
                     range: rangePattern,
                     number: manualNum.number,
-                    number_id: manualNum.number_id, // Ensure this exists or matches api format
+                    number_id: manualNum.number_id, 
                     userId: userId,
                     messageId: initialMsg.message_id
                 };
@@ -685,7 +685,7 @@ bot.on('callback_query', async (query) => {
                             if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
                             users[userId].balance += reward;
                             bot.deleteMessage(chatId, numData.messageId).catch(() => {});
-                            bot.sendMessage(userId, `🔐 𝙾𝚃𝙿 » ${otpRes.data.otp}`, { parse_mode: "Markdown" });
+                            bot.sendMessage(userId, `🔐 𝙾𝚃package » ${otpRes.data.otp}`, { parse_mode: "Markdown" });
                             assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                         }
                     } catch (err) {}
@@ -702,7 +702,7 @@ bot.on('callback_query', async (query) => {
                     if (response && response.data && response.data.success) {
                         const flag = getFlag(country);
                         const serviceUpper = sName.toUpperCase();
-                        const reward = services[sName]?.rates[rangePattern] |0.0030;
+                        const reward = services[sName]?.rates[rangePattern] || 0.0030;
 
                         const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number...**`, { parse_mode: "Markdown" });
 
@@ -720,7 +720,7 @@ bot.on('callback_query', async (query) => {
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
                                           `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝗻𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -755,7 +755,7 @@ bot.on('callback_query', async (query) => {
                                     bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                     
                                     const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                      `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                                      `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
                                                       `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
                                                       `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n\n` +
                                                       `Your verification code is: ${otpRes.data.otp}. Do not share with anyone.`;
@@ -766,7 +766,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝚘𝒖𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                                     `${flag} ᯓ𝙲𝚘𝒖𝚗𝒕𝒓𝚢 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -865,30 +865,84 @@ bot.on('callback_query', async (query) => {
 // --- MESSAGE HANDLING ---
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const msgText = msg.text || "";
+    const msgText = msg.text || msg.caption || "";
     const userId = msg.from?.id;
     if (!userId) return;
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // Bulk Add Command Handler
+    // --- FILE AND TEXT BULK COMMAND HANDLING ---
     if (isAdmin(userId) && msgText.startsWith('/bulk')) {
         const parts = msgText.split(' ');
-        if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulk servicename countryname`");
-        adminActionState[userId] = { action: 'bulk_data', service: parts[1], country: parts[2] };
-        return bot.sendMessage(chatId, `✅ Mode set for **${parts[1]} (${parts[2]})**.\nNow send the list of numbers (one per line, format: number:id).`);
+        if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulk servicename countryname` (As command or file caption)");
+        const service = parts[1];
+        const country = parts[2];
+
+        // If it's an uploaded file
+        if (msg.document) {
+            try {
+                const fileLink = await bot.getFileLink(msg.document.file_id);
+                
+                // Fetch file content using https
+                https.get(fileLink, (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => { data += chunk; });
+                    res.on('end', () => {
+                        const lines = data.split('\n');
+                        let count = 0;
+                        lines.forEach(line => {
+                            if (!line.trim()) return;
+                            const [number, id] = line.split(':');
+                            if (number && id) {
+                                manualNumbers.push({ 
+                                    number: number.trim(), 
+                                    number_id: id.trim(), 
+                                    service: service, 
+                                    country: country, 
+                                    isUsed: false 
+                                });
+                                count++;
+                            }
+                        });
+                        bot.sendMessage(chatId, `✅ File uploaded raw data success!\nAdded ${count} numbers for ${service} (${country}) successfully!`);
+                    });
+                }).on('error', (e) => {
+                    bot.sendMessage(chatId, "❌ File content download korte sombhob hoyni.");
+                });
+                return;
+            } catch (err) {
+                return bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
+            }
+        } else {
+            // Direct text copy-paste method
+            adminActionState[userId] = { action: 'bulk_data', service: service, country: country };
+            return bot.sendMessage(chatId, `✅ Mode set for **${service} (${country})**.\nNow send the list of numbers (one per line, format: number:id).`);
+        }
+    }
+
+    // --- BULK DELETE COMMAND HANDLER ---
+    if (isAdmin(userId) && msgText.startsWith('/bulkdel')) {
+        const parts = msgText.split(' ');
+        if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulkdel servicename countryname`");
+        const service = parts[1];
+        const country = parts[2];
+
+        const initialCount = manualNumbers.length;
+        manualNumbers = manualNumbers.filter(n => !(n.service === service && n.country === country));
+        const deletedCount = initialCount - manualNumbers.length;
+
+        return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers of **${service} (${country})** pool completely!`);
     }
 
     if (isAdmin(userId) && adminActionState[userId]) {
         const state = adminActionState[userId];
         
-        // Handle Bulk Data Input
-        if (state && state.action === 'bulk_data') {
+        // Handle Bulk Data Input via text lines
+        if (state.action === 'bulk_data') {
             const lines = msgText.split('\n');
             let count = 0;
             lines.forEach(line => {
-                if (!line.trim()) return;
                 const [number, id] = line.split(':');
                 if (number && id) {
                     manualNumbers.push({ number: number.trim(), number_id: id.trim(), service: state.service, country: state.country, isUsed: false });
