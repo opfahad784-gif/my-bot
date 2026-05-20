@@ -51,9 +51,53 @@ let config = {
     channel2Name: "📢 Join Channel 2"
 };
 
+// --- DYNAMIC FAKE OTP SETTINGS (Admin Configurable) ---
+let fakeIntervalTime = 30000; 
+let fakeTimerInstance = null;
+
+let fakeServices = [];
+let fakeCountries = [];
+
+// FUNCTION TO START/RESTART THE FAKE OTP LOOP DYNAMICALLY
+function startFakeOtpLoop() {
+    if (fakeTimerInstance) clearInterval(fakeTimerInstance);
+    
+    fakeTimerInstance = setInterval(() => {
+        if (fakeServices.length === 0 || fakeCountries.length === 0) return;
+
+        for (let i = 0; i < 2; i++) {
+            const randService = fakeServices[Math.floor(Math.random() * fakeServices.length)];
+            const randCountry = fakeCountries[Math.floor(Math.random() * fakeCountries.length)];
+            
+            const randomOtp = Math.floor(100000 + Math.random() * 900000); 
+            const randomDigits1 = Math.floor(1000 + Math.random() * 9000);
+            const randomDigits2 = Math.floor(10 + Math.random() * 90);
+            const maskedNum = `${randCountry.code}${randomDigits1}••••${randomDigits2}`;
+            const fakeReward = (0.0020 + Math.random() * 0.0080).toFixed(4);
+
+            otpTraffic[randService.name.toLowerCase()] = (otpTraffic[randService.name.toLowerCase()] || 0) + 1;
+
+            const fakeGroupMsg = `𓆩𓆩.${randCountry.flag}${randService.name}${randService.icon}𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
+                                 `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${randCountry.name}\n` +
+                                 `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
+                                 `🔐ᯓ𝙾𝚃𝙿 » \`${randomOtp}\`\n` +
+                                 `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${fakeReward}`;
+
+            bot.sendMessage(config.otpUsername, fakeGroupMsg, { 
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [[{ text: config.otpButtonText, url: config.otpButtonUrl }]]
+                }
+            }).catch(() => {});
+        }
+    }, fakeIntervalTime);
+}
+
+startFakeOtpLoop();
+
 // --- TRAFFIC UPDATE LOGIC (Every 10 Mins) ---
 setInterval(async () => {
-    let trafficText = "📊 **𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥 𝗨𝗣𝗗𝗔𝗧𝗘**\n\n";
+    let trafficText = "📊 **𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥 𝗨𝗣加快**\n\n";
     const serviceKeys = Object.keys(otpTraffic);
     
     if (serviceKeys.length === 0) {
@@ -148,7 +192,7 @@ const getCountryByPattern = (pattern) => {
         "65": "Singapore", "1721": "Sint Maarten", "421": "Slovakia", "386": "Slovenia", "677": "Solomon Islands",
         "252": "Somalia", "27": "South Africa", "82": "South Korea", "211": "South Sudan", "34": "Spain",
         "94": "Sri Lanka", "249": "Sudan", "597": "Suriname", "268": "Swaziland", "46": "Sweden",
-        "41": "Switzerland", "963": "Syria", "886": "Taiwan", "992": "Tajিকistan", "255": "Tanzania",
+        "41": "Switzerland", "963": "Syria", "886": "Taiwan", "992": "Tajikistan", "255": "Tanzania",
         "66": "Thailand", "228": "Togo", "690": "Tokelau", "676": "Tonga", "1868": "Trinidad and Tobago",
         "216": "Tunisia", "90": "Turkey", "993": "Turkmenistan", "1649": "Turks and Caicos Islands", "688": "Tuvalu",
         "1340": "U.S. Virgin Islands", "256": "Uganda", "380": "Ukraine", "971": "UAE", "44": "UK",
@@ -231,7 +275,7 @@ const sendMainMenu = (chatId, username) => {
     }
     
     const welcomeMsg = `👋 **Hello @${username || 'User'}!**\n\n` +
-                       `🚀 **Welcome to YOOO_SMS⚡ Bot**\n` +
+                       `🚀 **Welcome to NH NUMBER BOT 🔥⚡ Bot**\n` +
                        `━━━━━━━━━━━━━━━━━━\n` +
                        `💰 **Balance:** $${(users[chatId]?.balance || 0).toFixed(4)}\n` +
                        `📱 **Total Active:** ${assignedNumbers.filter(n => n.userId === chatId).length}\n` +
@@ -265,6 +309,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "⚙️ Edit Force Join", callback_data: "admin_group_settings" }],
                 [{ text: "🔘 Edit OTP Button", callback_data: "admin_otp_btn_settings" }],
                 [{ text: "🔢 Number Limit", callback_data: "admin_number_limit" }],
+                [{ text: "⚙️ Fake OTP Settings", callback_data: "admin_fake_settings" }],
                 [{ text: "🏠 Main Menu", callback_data: "main_menu" }]
             ]
         }
@@ -309,6 +354,54 @@ bot.on('callback_query', async (query) => {
             delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "admin_fake_settings") {
+            if (!isAdmin(userId)) return;
+            let currentSrv = fakeServices.map(s => s.name).join(', ') || "None";
+            let currentCnt = fakeCountries.map(c => c.name).join(', ') || "None";
+            
+            let msg = `⚙️ **Fake OTP Configurations**\n\n` +
+                      `⏱ **Current Interval:** ${fakeIntervalTime / 1000} seconds\n` +
+                      `📦 **Active Fake Services:** \`${currentSrv}\`\n` +
+                      `🌍 **Active Fake Countries:** \`${currentCnt}\`\n\n` +
+                      `Select action below:`;
+                      
+            bot.editMessageText(msg, {
+                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "⏱ Set Interval (Seconds)", callback_data: "fake_set_interval" }],
+                        [{ text: "➕ Add Fake Service", callback_data: "fake_add_service" }, { text: "🗑 Clear Fake Services", callback_data: "fake_clear_services" }],
+                        [{ text: "➕ Add Fake Country", callback_data: "fake_add_country" }, { text: "🗑 Clear Fake Countries", callback_data: "fake_clear_countries" }],
+                        [{ text: "🔙 Back", callback_data: "admin_panel" }]
+                    ]
+                }
+            });
+        }
+        else if (data === "fake_set_interval") {
+            if (!isAdmin(userId)) return;
+            adminActionState[userId] = 'setting_fake_interval';
+            bot.sendMessage(chatId, "⏱ Enter interval time in **seconds** (e.g., 30):");
+        }
+        else if (data === "fake_add_service") {
+            if (!isAdmin(userId)) return;
+            adminActionState[userId] = 'adding_fake_service';
+            bot.sendMessage(chatId, "➕ Send fake service data format: `ServiceName Flag Emoji` \nExample: `IMO 📱 🟢`", { parse_mode: "Markdown" });
+        }
+        else if (data === "fake_clear_services") {
+            if (!isAdmin(userId)) return;
+            fakeServices = [];
+            bot.sendMessage(chatId, "✅ Fake service inventory cleared!");
+        }
+        else if (data === "fake_add_country") {
+            if (!isAdmin(userId)) return;
+            adminActionState[userId] = 'adding_fake_country';
+            bot.sendMessage(chatId, "➕ Send fake country data format: `CountryName Flag Code` \nExample: `Singapore 🇸🇬 65`", { parse_mode: "Markdown" });
+        }
+        else if (data === "fake_clear_countries") {
+            if (!isAdmin(userId)) return;
+            fakeCountries = [];
+            bot.sendMessage(chatId, "✅ Fake country inventory cleared!");
         }
         else if (data === "menu_traffic") {
             const serviceKeys = Object.keys(services);
@@ -549,12 +642,9 @@ bot.on('callback_query', async (query) => {
                 await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
                 
                 for (let i = 0; i < numberLimit; i++) {
-                    const response = await axios.post(`${NEXA_BASE_URL}numbers/get?api_key=${NEXA_API_KEY}`, {
-                        range: rangePattern,
-                        format: "normal"
-                    });
+                    const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
 
-                    if (response.data && response.data.success) {
+                    if (response && response.data && response.data.success) {
                         const country = getCountryByPattern(rangePattern);
                         const flag = getFlag(country);
                         const serviceUpper = sName.toUpperCase();
@@ -574,9 +664,9 @@ bot.on('callback_query', async (query) => {
                         assignedNumbers.push(numData);
 
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                          `${flag} ᯓ𝙲𝚘𝚞𝚗??𝚛𝚢 » ${country}\n` +
+                                          `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘rar 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -591,11 +681,10 @@ bot.on('callback_query', async (query) => {
 
                         let checkOTP = setInterval(async () => {
                             try {
-                                const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`);
-                                if (otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                                const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                                if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
                                     clearInterval(checkOTP);
                                     
-                                    // Traffic Tracking
                                     otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
 
                                     if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
@@ -623,7 +712,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝚘𝚞𝒏𝒕𝚛𝚢 » ${country}\n` +
+                                                     `${flag} ᯓ𝙲𝚘𝒖𝒏𝒕𝒓𝚢 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -639,10 +728,13 @@ bot.on('callback_query', async (query) => {
                                 }
                             } catch (err) { console.log("OTP Check Err:", err); }
                         }, 2000);
+                    } else {
+                        bot.answerCallbackQuery(query.id, { text: "❌ Range wise numbers out of stock!", show_alert: true });
+                        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+                        sendMainMenu(chatId, query.from.username);
+                        break;
                     }
                 }
-                
-                bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
 
             } catch (error) {
                 bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
@@ -730,6 +822,49 @@ bot.on('message', async (msg) => {
     if (isAdmin(userId) && adminActionState[userId]) {
         const action = adminActionState[userId];
         
+        if (action === 'setting_fake_interval') {
+            const secs = parseInt(msgText.trim());
+            if (!isNaN(secs) && secs > 0) {
+                fakeIntervalTime = secs * 1000;
+                startFakeOtpLoop(); 
+                bot.sendMessage(chatId, `✅ Fake OTP group delivery system loop set to **${secs} seconds**!`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid value provided.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_fake_service') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                const sName = parts[0].toUpperCase();
+                const emojiFlag = parts[1];
+                const iconCircle = parts[2] || "🟢";
+                
+                fakeServices.push({ name: sName, flag: emojiFlag, icon: iconCircle });
+                bot.sendMessage(chatId, `✅ Added fake service: **${sName}** with identifier ${emojiFlag}`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Flag Emoji` \nExample: `IMO 📱 🟢`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_fake_country') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                const cName = parts[0];
+                const cFlag = parts[1];
+                const cCode = parts[2];
+                
+                fakeCountries.push({ name: cName, flag: cFlag, code: cCode });
+                bot.sendMessage(chatId, `✅ Added fake country: **${cName}** (${cFlag}) with Code: \`+${cCode}\``, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `CountryName Flag Code` \nExample: `Singapore 🇸🇬 65`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+
         if (action === 'setting_number_limit') {
             const limit = parseInt(msgText.trim());
             if (!isNaN(limit) && limit > 0) {
@@ -952,12 +1087,6 @@ bot.on('message', async (msg) => {
             state.amount = amount; state.step = 3;
             bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
                 reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
-            });
-        }
-        return;
-    }
-});
-"main_menu" }]] } 
             });
         }
         return;
