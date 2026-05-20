@@ -24,6 +24,7 @@ let users = {};
 let services = {};
 let availableNumbers = [];
 let assignedNumbers = [];
+let manualNumbers = []; // New storage for bulk numbers
 let transferStates = {};
 let withdrawStates = {};
 let isWithdrawActive = false;
@@ -58,7 +59,6 @@ let fakeTimerInstance = null;
 let fakeServices = [];
 let fakeCountries = [];
 
-// FUNCTION TO START/RESTART THE FAKE OTP LOOP DYNAMICALLY
 function startFakeOtpLoop() {
     if (fakeTimerInstance) clearInterval(fakeTimerInstance);
     
@@ -95,7 +95,6 @@ function startFakeOtpLoop() {
 
 startFakeOtpLoop();
 
-// --- TRAFFIC UPDATE LOGIC (Every 10 Mins) ---
 setInterval(async () => {
     let trafficText = "📊 **𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥 𝗨𝗣加快**\n\n";
     const serviceKeys = Object.keys(otpTraffic);
@@ -122,7 +121,6 @@ setInterval(async () => {
     }
 }, 600000); 
 
-// --- HELPERS ---
 const isAdmin = (userId) => {
     return userId === ADMIN_ID || extraAdmins.includes(Number(userId));
 };
@@ -289,8 +287,7 @@ const sendMainMenu = (chatId, username) => {
                 [{ text: "📱 Get Number", callback_data: "menu_get_number" }, { text: "💰 Balance", callback_data: "menu_balance" }],
                 [{ text: "📱 Active Number", callback_data: "menu_active" }, { text: "💸 Withdraw", callback_data: "menu_withdraw" }],
                 [{ text: "📊 𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥", callback_data: "menu_traffic" }],
-                [{ text: "🤝 Referral", callback_data: "menu_referral" }],
-                [{ text: "🤖 Bot Update Channel", url: config.updateGroup }]
+                [{ text: "🤝 Referral", callback_data: "menu_referral" }, { text: "🤖 Bot Update Channel", url: config.updateGroup }]
             ]
         }
     });
@@ -303,6 +300,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "🗑 Delete Service", callback_data: "admin_del_service" }],
                 [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
+                [{ text: "📦 Bulk Add Numbers", callback_data: "admin_bulk_add" }], // Added
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "👤 Edit Admin", callback_data: "admin_edit_manager" }], 
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
@@ -354,6 +352,11 @@ bot.on('callback_query', async (query) => {
             delete adminActionState[userId];
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "admin_bulk_add") {
+            if (!isAdmin(userId)) return;
+            adminActionState[userId] = 'bulk_step1';
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: `/bulk servicename countryname`\nSend this command first.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -637,20 +640,71 @@ bot.on('callback_query', async (query) => {
         }
         else if (data.startsWith("country_")) {
             const [, sName, rangePattern] = data.split("_");
-            try {
-                let loadingText = "Getting Numbers.";
-                await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+            const country = getCountryByPattern(rangePattern);
+            
+            // Check manual pool first
+            let manualNum = manualNumbers.find(n => n.service === sName && n.country === country && !n.isUsed);
+            
+            if (manualNum) {
+                // Use manual number logic
+                manualNum.isUsed = true;
+                const reward = services[sName]?.rates[rangePattern] || 0.0030;
+                const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number...**`, { parse_mode: "Markdown" });
+
+                const numData = {
+                    service: sName,
+                    range: rangePattern,
+                    number: manualNum.number,
+                    number_id: manualNum.number_id, // Ensure this exists or matches api format
+                    userId: userId,
+                    messageId: initialMsg.message_id
+                };
                 
-                for (let i = 0; i < numberLimit; i++) {
+                assignedNumbers.push(numData);
+                const flag = getFlag(country);
+                const assignedMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
+                                    `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                    `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
+                                    `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                    `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
+
+                bot.editMessageText(assignedMsg, {
+                    chat_id: chatId, message_id: initialMsg.message_id, parse_mode: "Markdown",
+                    reply_markup: { 
+                        inline_keyboard: [ [{ text: "🗑 Delete", callback_data: `del_${numData.number}` }] ] 
+                    }
+                });
+
+                // OTP polling logic remains same
+                let checkOTP = setInterval(async () => {
+                    try {
+                        const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                        if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                            clearInterval(checkOTP);
+                            otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
+                            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                            users[userId].balance += reward;
+                            bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                            bot.sendMessage(userId, `🔐 𝙾𝚃𝙿 » ${otpRes.data.otp}`, { parse_mode: "Markdown" });
+                            assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
+                        }
+                    } catch (err) {}
+                }, 2000);
+
+            } else {
+                // API Logic
+                try {
+                    let loadingText = "Getting Numbers.";
+                    await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                    
                     const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
 
                     if (response && response.data && response.data.success) {
-                        const country = getCountryByPattern(rangePattern);
                         const flag = getFlag(country);
                         const serviceUpper = sName.toUpperCase();
                         const reward = services[sName]?.rates[rangePattern] || 0.0030;
 
-                        const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number ${i+1}...**`, { parse_mode: "Markdown" });
+                        const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number...**`, { parse_mode: "Markdown" });
 
                         const numData = {
                             service: sName,
@@ -666,7 +720,7 @@ bot.on('callback_query', async (query) => {
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
                                           `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘rar 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -712,7 +766,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝚘𝒖𝒏𝒕𝒓𝚢 » ${country}\n` +
+                                                     `${flag} ᯓ𝙲𝚘𝒖𝚗𝚝𝚛𝚢 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -732,12 +786,11 @@ bot.on('callback_query', async (query) => {
                         bot.answerCallbackQuery(query.id, { text: "❌ Range wise numbers out of stock!", show_alert: true });
                         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
                         sendMainMenu(chatId, query.from.username);
-                        break;
                     }
-                }
 
-            } catch (error) {
-                bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
+                } catch (error) {
+                    bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
+                }
             }
         }
         else if (data === "transfer_bal") {
@@ -819,8 +872,33 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
+    // Bulk Add Command Handler
+    if (isAdmin(userId) && msgText.startsWith('/bulk')) {
+        const parts = msgText.split(' ');
+        if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulk servicename countryname`");
+        adminActionState[userId] = { action: 'bulk_data', service: parts[1], country: parts[2] };
+        return bot.sendMessage(chatId, `✅ Mode set for **${parts[1]} (${parts[2]})**.\nNow send the list of numbers (one per line, format: number:id).`);
+    }
+
     if (isAdmin(userId) && adminActionState[userId]) {
-        const action = adminActionState[userId];
+        const state = adminActionState[userId];
+        
+        // Handle Bulk Data Input
+        if (state.action === 'bulk_data') {
+            const lines = msgText.split('\n');
+            let count = 0;
+            lines.forEach(line => {
+                const [number, id] = line.split(':');
+                if (number && id) {
+                    manualNumbers.push({ number: number.trim(), number_id: id.trim(), service: state.service, country: state.country, isUsed: false });
+                    count++;
+                }
+            });
+            delete adminActionState[userId];
+            return bot.sendMessage(chatId, `✅ Added ${count} numbers for ${state.service} (${state.country}) successfully!`);
+        }
+
+        const action = state; 
         
         if (action === 'setting_fake_interval') {
             const secs = parseInt(msgText.trim());
