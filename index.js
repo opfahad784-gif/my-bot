@@ -71,21 +71,11 @@ function startFakeOtpLoop() {
             
             const randomOtp = Math.floor(100000 + Math.random() * 900000); 
             const randomDigits1 = Math.floor(1000 + Math.random() * 9000);
-            const randomDigits2 = Math.floor(10 + Math.random() * 90);
+            const randomDigits2 = Math.floor(1000 + Math.random() * 9000); // 4 Digits for matching simulation
             const maskedNum = `${randCountry.code}${randomDigits1}••••${randomDigits2}`;
             const fakeReward = (0.0020 + Math.random() * 0.0080).toFixed(4);
 
             otpTraffic[randService.name.toLowerCase()] = (otpTraffic[randService.name.toLowerCase()] || 0) + 1;
-
-            // Trigger matching check for user digits if any manual numbers match the pattern
-            // Splitting logic inside the loop helps dynamic distribution
-            assignedNumbers.forEach(async (numData) => {
-                const targetDigits = numData.number.toString().slice(-4);
-                const generatedDigits = randomDigits2.toString();
-                if (generatedDigits.endsWith(targetDigits) || targetDigits.endsWith(generatedDigits)) {
-                     // Potential matches routing automatically inside listener
-                }
-            });
 
             const fakeGroupMsg = `𓆩𓆩.${randCountry.flag}${randService.name}${randService.icon}𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                  `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗тку » ${randCountry.name}\n` +
@@ -254,7 +244,7 @@ const getFlag = (countryName) => {
         "morocco": "🇲🇦", "mozambique": "🇲🇿", "myanmar": "🇲🇲", "namibia": "🇳🇦",
         "nepal": "🇳🇵", "netherlands": "🇳🇱", "new zealand": "🇳🇿", "nicaragua": "🇳🇮",
         "niger": "🇳🇪", "nigeria": "🇳🇬", "norway": "🇳🇴", "oman": "🇴🇲",
-        "pakistan": "🇵🇰", "palestine": "🇵🇸", "panama": "🇵🇦", "paraguay": "🇵🇾",
+        "pakistan": "🇵開", "palestine": "🇵🇸", "panama": "🇵🇦", "paraguay": "🇵🇾",
         "peru": "🇵🇪", "philippines": "🇵🇭", "poland": "🇵🇱", "portugal": "🇵🇹",
         "qatar": "🇶🇦", "romania": "🇷🇴", "russia": "🇷🇺", "rwanda": "🇷🇼",
         "saudi arabia": "🇸🇦", "senegal": "🇸🇳", "serbia": "🇷🇸", "singapore": "🇸🇬",
@@ -332,6 +322,63 @@ const sendAdminPanel = (chatId) => {
         }
     });
 };
+
+// --- AUTOMATIC GROUP CHAT OTP LISTENER (CRITICAL FIX FOR 4-DIGIT MATCHING) ---
+bot.on('message', async (groupMsg) => {
+    if (!groupMsg.text) return;
+    
+    // Check if message is coming from your defined OTP channel/group
+    const isOtpGroup = groupMsg.chat.username === config.otpUsername.replace('@', '') || groupMsg.chat.id.toString() === config.otpUsername;
+    if (!isOtpGroup) return;
+
+    const text = groupMsg.text;
+    
+    // Extract potential OTP and Number from the layout pattern
+    let incomingOtp = "";
+    let otpMatch = text.match(/(?:𝙾𝚃🔑|𝙾𝚃package)\s*»\s*`?(\d+)/i);
+    if (otpMatch) incomingOtp = otpMatch[1];
+
+    if (!incomingOtp) return; // No OTP found in group post, skip scanning
+
+    // Scan through all currently active/waiting numbers assigned to users
+    assignedNumbers.forEach(async (numData) => {
+        const rawNumStr = numData.number.toString();
+        const targetLast4 = rawNumStr.slice(-4);
+
+        // Check if the group text contains the last 4 digits of this user's active number
+        if (text.includes(targetLast4)) {
+            const userId = numData.userId;
+
+            // Delete waiting status message
+            bot.deleteMessage(userId, numData.messageId).catch(() => {});
+
+            // Update user balance & credit reward
+            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+            users[userId].balance += numData.reward;
+
+            // Handle referral payout logic safely
+            if (users[userId].referredBy && users[users[userId].referredBy]) {
+                const refId = users[userId].referredBy;
+                const commission = numData.reward * REFERRAL_COMMISSION;
+                users[refId].balance += commission;
+                users[refId].earnings += commission;
+                bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
+            }
+
+            // --- PHOTO INLINE FORMAT SUCCESS MESSAGE (CLICK TO COPY) ---
+            const successMsg = `╔═════════════════╗\n` +
+                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                               `╚═════════════════╝\n` +
+                               `   ————— YOUR OTP————\n` +
+                               `                 🔑= \`${incomingOtp}\``;
+
+            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
+
+            // Remove from waiting queue
+            assignedNumbers = assignedNumbers.filter(n => n.number !== numData.number);
+        }
+    });
+});
 
 // --- CALLBACK HANDLING ---
 bot.on('callback_query', async (query) => {
@@ -664,7 +711,6 @@ bot.on('callback_query', async (query) => {
             let validPool = manualNumbers.filter(n => n.service === sName && n.country.toLowerCase() === country.toLowerCase() && !n.isUsed);
             
             if (validPool.length > 0) {
-                // --- CHOOSE NUMBER RANDOMLY FROM FILE POOL INSTEAD OF LINE BY LINE ---
                 const randomIndex = Math.floor(Math.random() * validPool.length);
                 let manualNum = validPool[randomIndex];
                 
@@ -672,87 +718,17 @@ bot.on('callback_query', async (query) => {
                 const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
                 const flag = getFlag(country);
 
-                // --- PHOTO INLINE LAYOUT UI DISPLAY (FACEBOOK ASSIGNED PHOTO STYLE) ---
-                const assignedMsg = `╔═════════════════╗\n` +
-                                    `║ ${flag} ${sName.toUpperCase()} + $${reward.toFixed(4)} ║\n` +
-                                    `╚═════════════════╝\n` +
-                                    `  ☎️ 𝗡𝘂𝗺𝗯𝗲𝗿 » \`${manualNum.number}\`\n\n` +
-                                    `⏳ 𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...`;
+                // --- PHOTO INLINE LAYOUT UI DISPLAY (SCREENSHOT PERFECT MATCH) ---
+                const assignedCaption = `╔═════════════════╗\n` +
+                                                `║ ${flag} ${serviceUpper} + $${reward.toFixed(4)} ║\n` +
+                                                `╚═════════════════╝\n` +
+                                                `📱 𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n\n` +
+                                                `⏳ 𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...`;
 
-                const initialMsg = await bot.sendMessage(chatId, assignedMsg, { 
-                    parse_mode: "Markdown",
-                    reply_markup: { 
-                        inline_keyboard: [ [{ text: "🗑 Cancel", callback_data: `del_${manualNum.number}` }] ] 
-                    }
-                });
+                        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
 
-                const numData = {
-                    service: sName,
-                    range: rangePattern,
-                    number: manualNum.number,
-                    number_id: manualNum.number_id, 
-                    userId: userId,
-                    messageId: initialMsg.message_id,
-                    reward: reward,
-                    flag: flag
-                };
-                
-                assignedNumbers.push(numData);
-
-                // --- LIVE POLLING FOR THE MATCHING LAST 4 DIGIT GROUP SMS LOGIC ---
-                let checkOTP = setInterval(async () => {
-                    try {
-                        const targetLast4Digits = numData.number.toString().slice(-4);
-                        const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
-                        
-                        if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
-                            clearInterval(checkOTP);
-                            otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
-                            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
-                            users[userId].balance += reward;
-                            
-                            if (users[userId].referredBy && users[users[userId].referredBy]) {
-                                const refId = users[userId].referredBy;
-                                const commission = reward * REFERRAL_COMMISSION;
-                                users[refId].balance += commission;
-                                users[refId].earnings += commission;
-                            }
-                            
-                            bot.deleteMessage(chatId, numData.messageId).catch(() => {});
-                            
-                            // --- ASSIGNED PHOTO PATTERN UI DESIGN WITH CLICK TO COPY ---
-                            const successMsg = `╔═════════════════╗\n` +
-                                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
-                                               `╚═════════════════╝\n` +
-                                               `   ————— YOUR OTP————\n` +
-                                               `                 🔑= \`${otpRes.data.otp}\``;
-
-                            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
-                            assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
-                        }
-                    } catch (err) {}
-                }, 2000);
-
-            } else {
-                // API Logic Backend Fallback
-                try {
-                    let loadingText = "Getting Numbers.";
-                    await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
-                    
-                    const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
-
-                    if (response && response.data && response.data.success) {
-                        const flag = getFlag(country);
-                        const serviceUpper = sName.toUpperCase();
-                        const reward = services[sName]?.rates[rangePattern] || 0.0030;
-
-                        const assignedMsg = `╔═════════════════╗\n` +
-                                            `║ ${flag} ${serviceUpper} + $${reward.toFixed(4)} ║\n` +
-                                            `╚═════════════════╝\n` +
-                                            `  ☎️ 𝗡𝘂𝗺𝗯𝗲𝗿 » \`${response.data.number}\`\n\n` +
-                                            `⏳ 𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...`;
-
-                        const initialMsg = await bot.sendMessage(chatId, assignedMsg, { 
+                        const initialMsg = await bot.sendPhoto(chatId, 'https://placehold.co/600x337/313338/ffffff?text=NH+OTP+SERVER', {
+                            caption: assignedCaption,
                             parse_mode: "Markdown",
                             reply_markup: { 
                                 inline_keyboard: [
@@ -796,7 +772,6 @@ bot.on('callback_query', async (query) => {
                                     
                                     bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                     
-                                    // --- UPDATED LAYOUT UI DISPLAY (CLICK TO COPY FORMAT) ---
                                     const userOtpMsg = `╔═════════════════╗\n` +
                                                        `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
                                                        `╚═════════════════╝\n` +
@@ -809,7 +784,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝒚 » ${country}\n` +
+                                                     `${flag} ᯓ\u13df\u13eb\u13cdun\u13d9\u13d5\u13ec » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -915,7 +890,7 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // --- TEXT BULKADD STAGE 1: COMMAND RECEIVE ---
+    // --- TEXT BULKADD STAGE 1 ---
     if (isAdmin(userId) && msgText.startsWith('/bulkadd') && !msg.document) {
         const parts = msgText.split(' ');
         if (parts.length < 4) {
@@ -930,7 +905,6 @@ bot.on('message', async (msg) => {
             return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
         }
 
-        // Store configuration details temporarily inside state
         adminActionState[userId] = {
             step: 'awaiting_bulk_file',
             service: serviceName,
@@ -941,7 +915,7 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, "✉️ **Send your file now**");
     }
 
-    // --- BULKADD STAGE 2: CAPTURING INCOMING FILE ---
+    // --- BULKADD STAGE 2 ---
     if (isAdmin(userId) && msg.document && adminActionState[userId] && adminActionState[userId].step === 'awaiting_bulk_file') {
         const bulkConfig = adminActionState[userId];
         const serviceName = bulkConfig.service;
@@ -978,7 +952,6 @@ bot.on('message', async (msg) => {
                             number = parts[0].trim();
                             id = parts[1].trim();
                         } else {
-                            // Single number fallback (Creates unique id automatically)
                             number = line.trim();
                             id = "id_" + Math.floor(100000 + Math.random() * 900000).toString();
                         }
@@ -995,7 +968,7 @@ bot.on('message', async (msg) => {
                             count++;
                         }
                     });
-                    delete adminActionState[userId]; // Reset state
+                    delete adminActionState[userId];
                     bot.sendMessage(chatId, `✅ Success! ${count} numbers add hoyeche from your file for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
                 });
             });
@@ -1005,7 +978,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    // --- CAPTURING COMMAND IN CAPTION DIRECTLY (ALTERNATIVE BACKWARD COMPATIBILITY) ---
+    // --- CAPTURING COMMAND IN CAPTION DIRECTLY ---
     if (isAdmin(userId) && msg.document && msg.caption && msg.caption.startsWith('/bulkadd')) {
         const parts = msg.caption.split(' ');
         if (parts.length >= 4) {
