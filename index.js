@@ -865,7 +865,6 @@ bot.on('callback_query', async (query) => {
 // --- MESSAGE HANDLING ---
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    // Ekhane message ba caption, jeta paowa jabe sheti ke text hishebe nibo
     const msgText = msg.text || msg.caption || "";
     const userId = msg.from?.id;
     if (!userId) return;
@@ -873,37 +872,67 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // --- NUMADD COMMAND HANDLING (FIXED CAPTION DETECTION) ---
-    // Command ti msgText ba caption jekono jaigai thaklei kaj korbe
-    if (isAdmin(userId) && (msgText.startsWith('/numadd') || (msg.caption && msg.caption.startsWith('/numadd')))) {
-        
-        const commandLine = msg.caption || msg.text;
-        const parts = commandLine.split(' ');
-        
-        if (parts.length < 4) {
-            return bot.sendMessage(chatId, "❌ Invalid command. Format: `/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05`");
-        }
-        
-        const serviceName = parts[1].toLowerCase();
-        const countryName = parts[2].toLowerCase();
-        const customRate = parseFloat(parts[3]);
-
-        if (isNaN(customRate)) {
-            return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
+    // --- UNIFIED NUMADD COMMAND HANDLING ---
+    if (isAdmin(userId)) {
+        // 1. If file uploaded without caption, save state and ask for command
+        if (msg.document && !msg.caption) {
+            adminActionState[userId] = { action: 'waiting_for_numadd_info', fileId: msg.document.file_id };
+            return bot.sendMessage(chatId, "📁 File received!\n\nEkhon command-ti likhun:\n`/numadd servicename countryname rate`");
         }
 
-        if (!services[serviceName]) {
-            services[serviceName] = { name: serviceName, countries: [], rates: {} };
-        }
-        services[serviceName].rates[countryName] = customRate;
-        if (!services[serviceName].countries.includes(countryName)) {
-            services[serviceName].countries.push(countryName);
+        // 2. Identify if this message contains the numadd command and file info
+        let isNumaddCmd = false;
+        let cmdText = "";
+        let fileIdToProcess = null;
+
+        if (msg.document && msg.caption && msg.caption.startsWith('/numadd')) {
+            // File + Caption sent together
+            isNumaddCmd = true;
+            cmdText = msg.caption;
+            fileIdToProcess = msg.document.file_id;
+        } else if (msgText.startsWith('/numadd')) {
+            // Text command sent
+            if (msg.document) {
+                // (Fallback)
+                isNumaddCmd = true;
+                cmdText = msgText;
+                fileIdToProcess = msg.document.file_id;
+            } else if (adminActionState[userId]?.action === 'waiting_for_numadd_info') {
+                // Text command sent AFTER a file was uploaded
+                isNumaddCmd = true;
+                cmdText = msgText;
+                fileIdToProcess = adminActionState[userId].fileId;
+                delete adminActionState[userId];
+            } else {
+                return bot.sendMessage(chatId, "❌ File attach korenni! Please file upload kore command din, othoba file er caption e command din.");
+            }
         }
 
-        // File process korar logic
-        if (msg.document) {
+        // 3. Process the file
+        if (isNumaddCmd) {
+            const parts = cmdText.split(' ');
+            if (parts.length < 4) {
+                return bot.sendMessage(chatId, "❌ Invalid command. Use format:\n`/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05`");
+            }
+            
+            const serviceName = parts[1].toLowerCase();
+            const countryName = parts[2].toLowerCase();
+            const customRate = parseFloat(parts[3]);
+
+            if (isNaN(customRate)) {
+                return bot.sendMessage(chatId, "❌ Rate dynamic number hote hobe (e.g., 0.05).");
+            }
+
+            if (!services[serviceName]) {
+                services[serviceName] = { name: serviceName, countries: [], rates: {} };
+            }
+            services[serviceName].rates[countryName] = customRate;
+            if (!services[serviceName].countries.includes(countryName)) {
+                services[serviceName].countries.push(countryName);
+            }
+
             try {
-                const fileLink = await bot.getFileLink(msg.document.file_id);
+                const fileLink = await bot.getFileLink(fileIdToProcess);
                 https.get(fileLink, (res) => {
                     let data = '';
                     res.on('data', (chunk) => { data += chunk; });
@@ -919,25 +948,23 @@ bot.on('message', async (msg) => {
                                     number_id: id.trim(), 
                                     service: serviceName, 
                                     country: countryName, 
+                                    rate: customRate,
                                     isUsed: false 
                                 });
                                 count++;
                             }
                         });
-                        bot.sendMessage(chatId, `✅ Success! ${count} numbers added for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
+                        bot.sendMessage(chatId, `✅ Bulk file processed successfully!\nAdded ${count} manual numbers for **${serviceName} (${countryName})** pool at rate **$${customRate.toFixed(4)}**!`, { parse_mode: "Markdown" });
                     });
+                }).on('error', (e) => {
+                    bot.sendMessage(chatId, "❌ File content download korte sombhob hoyni.");
                 });
             } catch (err) {
-                bot.sendMessage(chatId, "❌ File download error.");
+                bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
             }
-        } else {
-            bot.sendMessage(chatId, "⚠️ Command receive hoyeche, kintu file attach korenni.");
+            return; // Stop further processing for this message
         }
-        return;
     }
-
-    // (Baki code ager motoi thakbe...)
-
 
     // --- FILE AND TEXT BULK COMMAND HANDLING ---
     if (isAdmin(userId) && msgText.startsWith('/bulk')) {
@@ -986,66 +1013,6 @@ bot.on('message', async (msg) => {
             // Direct text copy-paste method setup
             adminActionState[userId] = { action: 'bulk_data', service: service, country: country };
             return bot.sendMessage(chatId, `✅ Text entry mode set for **${service} (${country})**.\nNow send the list of numbers (one per line, format: number:id).`);
-        }
-    }
-
-    // --- NUMADD COMMAND HANDLING ---
-    if (isAdmin(userId) && msgText.startsWith('/numadd')) {
-        const fullCmd = msg.document ? msg.caption : msgText;
-        const parts = fullCmd.split(' ');
-        if (parts.length < 4) {
-            return bot.sendMessage(chatId, "❌ Invalid command. Use format:\n`/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05` as a .txt file caption.");
-        }
-        
-        const serviceName = parts[1].toLowerCase();
-        const countryName = parts[2].toLowerCase();
-        const customRate = parseFloat(parts[3]);
-
-        if (isNaN(customRate)) {
-            return bot.sendMessage(chatId, "❌ Rate dynamic number hote hobe (e.g., 0.05).");
-        }
-
-        // Auto creation of service & custom rate configurations safely
-        if (!services[serviceName]) {
-            services[serviceName] = { name: serviceName, rates: {} };
-        }
-        services[serviceName].rates[countryName] = customRate;
-
-        if (msg.document) {
-            try {
-                const fileLink = await bot.getFileLink(msg.document.file_id);
-                https.get(fileLink, (res) => {
-                    let data = '';
-                    res.on('data', (chunk) => { data += chunk; });
-                    res.on('end', () => {
-                        const lines = data.replace(/\r/g, '').split('\n');
-                        let count = 0;
-                        lines.forEach(line => {
-                            if (!line.trim()) return;
-                            const [number, id] = line.split(':');
-                            if (number && id) {
-                                manualNumbers.push({ 
-                                    number: number.trim(), 
-                                    number_id: id.trim(), 
-                                    service: serviceName, 
-                                    country: countryName, 
-                                    rate: customRate,
-                                    isUsed: false 
-                                });
-                                count++;
-                            }
-                        });
-                        bot.sendMessage(chatId, `✅ Bulk file processed successfully!\nAdded ${count} manual numbers for **${serviceName} (${countryName})** pool at rate **$${customRate.toFixed(4)}**!`);
-                    });
-                }).on('error', (e) => {
-                    bot.sendMessage(chatId, "❌ File content download korte sombhob hoyni.");
-                });
-                return;
-            } catch (err) {
-                return bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
-            }
-        } else {
-            return bot.sendMessage(chatId, "❌ File attach kore caption e command din (e.g., `/numadd service country rate`).");
         }
     }
 
