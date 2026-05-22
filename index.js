@@ -309,7 +309,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "📊 View Users", callback_data: "admin_view_users" }, { text: "📢 Broadcast", callback_data: "admin_broadcast" }],
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "🗑 Delete Service", callback_data: "admin_del_service" }],
                 [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
-                [{ text: "📦 Bulk Add Numbers", callback_data: "admin_bulk_add" }],
+                [{ text: "🔗 Bulk Add (Set Link)", callback_data: "admin_bulk_add" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "👤 Edit Admin", callback_data: "admin_edit_manager" }], 
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
@@ -412,7 +412,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_bulk_add") {
             if (!isAdmin(userId)) return;
-            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: Send `/bulkadd servicename countryname perotprate` format trigger text first.");
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers with Link**\nFormat: Send `/bulkadd servicename countryname perotprate otpgrouplink` and upload your file.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -708,6 +708,7 @@ bot.on('callback_query', async (query) => {
                 manualNum.isUsed = true;
                 const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
                 const flag = getFlag(country);
+                const targetedOtpGroup = manualNum.otpGroup || config.otpGroup;
 
                 // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
                 const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
@@ -724,7 +725,7 @@ bot.on('callback_query', async (query) => {
                     reply_markup: { 
                         inline_keyboard: [ 
                             [{ text: "🗑 Delete Number", callback_data: `del_${manualNum.number}` }],
-                            [{ text: "📱 Otp Group", url: config.otpGroup }]
+                            [{ text: "📱 Otp Group", url: targetedOtpGroup }]
                         ] 
                     }
                 });
@@ -737,7 +738,8 @@ bot.on('callback_query', async (query) => {
                     userId: userId,
                     messageId: initialMsg.message_id,
                     reward: reward,
-                    flag: flag
+                    flag: flag,
+                    otpGroup: targetedOtpGroup
                 };
                 
                 assignedNumbers.push(numData);
@@ -948,16 +950,17 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // --- TEXT BULKADD STAGE 1 ---
+    // --- TEXT BULKADD STAGE 1 (With Optional Group Link) ---
     if (isAdmin(userId) && msgText.startsWith('/bulkadd') && !msg.document) {
         const parts = msgText.split(' ');
         if (parts.length < 4) {
-            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkadd servicename countryname perotprate` format command.");
+            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkadd servicename countryname perotprate [otpgrouplink]` format command.");
         }
         
         const serviceName = parts[1].toLowerCase();
         const countryName = parts[2].toLowerCase();
         const customRate = parseFloat(parts[3]);
+        const customGroupLink = parts[4] || null; // Capture the custom link if provided
 
         if (isNaN(customRate)) {
             return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
@@ -967,7 +970,8 @@ bot.on('message', async (msg) => {
             step: 'awaiting_bulk_file',
             service: serviceName,
             country: countryName,
-            rate: customRate
+            rate: customRate,
+            otpGroup: customGroupLink
         };
 
         return bot.sendMessage(chatId, "✉️ **Send your file now**");
@@ -979,6 +983,7 @@ bot.on('message', async (msg) => {
         const serviceName = bulkConfig.service;
         const countryName = bulkConfig.country;
         const customRate = bulkConfig.rate;
+        const targetGroupLink = bulkConfig.otpGroup;
 
         if (!services[serviceName]) {
             services[serviceName] = { name: serviceName, countries: [], rates: {} };
@@ -1021,6 +1026,7 @@ bot.on('message', async (msg) => {
                                 service: serviceName, 
                                 country: countryName, 
                                 rate: customRate,
+                                otpGroup: targetGroupLink, // Saving custom link to memory pool
                                 isUsed: false 
                             });
                             count++;
@@ -1043,6 +1049,7 @@ bot.on('message', async (msg) => {
             const serviceName = parts[1].toLowerCase();
             const countryName = parts[2].toLowerCase();
             const customRate = parseFloat(parts[3]);
+            const customGroupLink = parts[4] || null;
 
             if (!isNaN(customRate)) {
                 if (!services[serviceName]) services[serviceName] = { name: serviceName, countries: [], rates: {} };
@@ -1076,7 +1083,15 @@ bot.on('message', async (msg) => {
                                 }
 
                                 if (number) {
-                                    manualNumbers.push({ number: number, number_id: id, service: serviceName, country: countryName, rate: customRate, isUsed: false });
+                                    manualNumbers.push({ 
+                                        number: number, 
+                                        number_id: id, 
+                                        service: serviceName, 
+                                        country: countryName, 
+                                        rate: customRate, 
+                                        otpGroup: customGroupLink,
+                                        isUsed: false 
+                                    });
                                     count++;
                                 }
                             });
@@ -1096,11 +1111,27 @@ bot.on('message', async (msg) => {
         const service = parts[1].trim().toLowerCase();
         const country = parts[2].trim().toLowerCase();
 
+        // 1. Delete matching manual numbers pool completely
         const initialCount = manualNumbers.length;
         manualNumbers = manualNumbers.filter(n => !(n.service.toLowerCase() === service && n.country.toLowerCase() === country));
         const deletedCount = initialCount - manualNumbers.length;
 
-        return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers of **${parts[1]} (${parts[2]})** pool completely!`);
+        // 2. Clear matching specific service country layout configuration structure safely
+        if (services[service]) {
+            // Filter from countries list array configuration index directly
+            services[service].countries = services[service].countries.filter(c => c.toLowerCase() !== country);
+            // Delete configuration value item safely
+            if (services[service].rates) {
+                // Check direct matching key variants
+                Object.keys(services[service].rates).forEach(key => {
+                    if (key.toLowerCase() === country) {
+                        delete services[service].rates[key];
+                    }
+                });
+            }
+        }
+
+        return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers and range setup configuration for **${parts[1]} (${parts[2]})** completely!`);
     }
 
     if (isAdmin(userId) && adminActionState[userId] && typeof adminActionState[userId] === 'string') {
@@ -1324,7 +1355,7 @@ bot.on('message', async (msg) => {
                     users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
                 }
                 
-                if (users[userId].referredBy === null && users[refId] && refId != userId) {
+                if (users[userId].referredBy === null && users[users[refId]] && refId != userId) {
                     users[userId].referredBy = refId;
                     users[refId].referrals = (users[refId].referrals || 0) + 1;
                     
@@ -1377,4 +1408,4 @@ bot.on('message', async (msg) => {
         }
         return;
     }
-});
+});   
