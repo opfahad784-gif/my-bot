@@ -229,7 +229,7 @@ const getFlag = (countryName) => {
         "colombia": "🇨🇴", "congo": "🇨🇬", "costa rica": "🇨🇷", "croatia": "🇭🇷",
         "cuba": "🇨🇺", "cyprus": "🇨🇾", "czech republic": "🇨🇿", "denmark": "🇩🇰",
         "djibouti": "🇩🇯", "dominican republic": "🇩🇴", "ecuador": "🇪🇨", "egypt": "🇪🇬",
-        "el salvador": "🇸🇯", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
+        "el salvador": "🇸𝑽", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
         "finland": "🇫🇮", "france": "🇫🇷", "gabon": "🇬🇦", "gambia": "🇬🇲",
         "georgia": "🇬🇪", "germany": "🇩🇪", "ghana": "🇬🇭", "greece": "🇬🇷",
         "guatemala": "🇬🇹", "guinea": "🇬🇳", "haiti": "🇭🇹", "honduras": "🇭🇳",
@@ -711,7 +711,7 @@ bot.on('callback_query', async (query) => {
 
                 // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
                 const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
-                                        `{flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                        `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
                                         `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${manualNum.number}\`\n` +
                                         `⏳ᯓStatus » waiting for sms\n` +
                                         `💰ᯓREWARDS » $${reward.toFixed(4)}`;
@@ -720,6 +720,73 @@ bot.on('callback_query', async (query) => {
                 await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
 
                 const initialMsg = await bot.sendMessage(chatId, assignedCaption, {
+                    parse_mode: "Markdown",
+                    reply_markup: { 
+                        inline_keyboard: [ 
+                            [{ text: "🗑 Delete Number", callback_data: `del_${manualNum.number}` }],
+                            [{ text: "📱 Otp Group", url: config.otpGroup }]
+                        ] 
+                    }
+                });
+
+                const numData = {
+                    service: sName,
+                    range: rangePattern,
+                    number: manualNum.number,
+                    number_id: manualNum.number_id, 
+                    userId: userId,
+                    messageId: initialMsg.message_id,
+                    reward: reward,
+                    flag: flag
+                };
+                
+                assignedNumbers.push(numData);
+
+                let checkOTP = setInterval(async () => {
+                    try {
+                        const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                        if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                            clearInterval(checkOTP);
+                            otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
+                            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                            users[userId].balance += reward;
+                            
+                            bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                            
+                            const successMsg = `╔═════════════════╗\n` +
+                                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                               `╚═════════════════╝\n` +
+                                               `   ————— YOUR OTP————\n` +
+                                               `                 🔑= \`${otpRes.data.otp}\``;
+
+                            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
+                            assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
+                        }
+                    } catch (err) {}
+                }, 2000);
+
+            } else {
+                // API Logic Backend Fallback
+                try {
+                    let loadingText = "Getting Numbers.";
+                    await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                    
+                    const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
+
+                    if (response && response.data && response.data.success) {
+                        const flag = getFlag(country);
+                        const reward = services[sName]?.rates[rangePattern] || 0.0030;
+
+                        // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
+                        const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                                `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                                `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n` +
+                                                `⏳ᯓStatus » waiting for sms\n` +
+                                                `💰ᯓREWARDS » $${reward.toFixed(4)}`;
+
+                        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+
+                        const initialMsg = await bot.sendMessage(chatId, assignedCaption, {
                             parse_mode: "Markdown",
                             reply_markup: { 
                                 inline_keyboard: [
