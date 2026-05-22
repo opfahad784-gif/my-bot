@@ -78,7 +78,7 @@ function startFakeOtpLoop() {
             otpTraffic[randService.name.toLowerCase()] = (otpTraffic[randService.name.toLowerCase()] || 0) + 1;
 
             const fakeGroupMsg = `𓆩𓆩.${randCountry.flag}${randService.name}${randService.icon}𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                 `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝐲 » ${randCountry.name}\n` +
+                                 `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗тку » ${randCountry.name}\n` +
                                  `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                  `🔐ᯓ𝙾𝚃🔑 » \`${randomOtp}\`\n` +
                                  `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${fakeReward}`;
@@ -671,7 +671,7 @@ bot.on('callback_query', async (query) => {
                 assignedNumbers.push(numData);
                 const flag = getFlag(country);
                 const assignedMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                    `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝐲 » ${country}\n` +
+                                    `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
                                     `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
                                     `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                     `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -942,11 +942,24 @@ bot.on('message', async (msg) => {
                     let count = 0;
                     lines.forEach(line => {
                         if (!line.trim()) return;
-                        const [number, id] = line.split(':');
-                        if (number && id) {
+                        
+                        let number = "";
+                        let id = "";
+
+                        if (line.includes(':')) {
+                            const parts = line.split(':');
+                            number = parts[0].trim();
+                            id = parts[1].trim();
+                        } else {
+                            // Single number fallback (Creates unique id automatically)
+                            number = line.trim();
+                            id = "id_" + Math.floor(100000 + Math.random() * 900000).toString();
+                        }
+
+                        if (number) {
                             manualNumbers.push({ 
-                                number: number.trim(), 
-                                number_id: id.trim(), 
+                                number: number, 
+                                number_id: id, 
                                 service: serviceName, 
                                 country: countryName, 
                                 rate: customRate,
@@ -991,9 +1004,21 @@ bot.on('message', async (msg) => {
                             let count = 0;
                             lines.forEach(line => {
                                 if (!line.trim()) return;
-                                const [number, id] = line.split(':');
-                                if (number && id) {
-                                    manualNumbers.push({ number: number.trim(), number_id: id.trim(), service: serviceName, country: countryName, rate: customRate, isUsed: false });
+                                
+                                let number = "";
+                                let id = "";
+
+                                if (line.includes(':')) {
+                                    const parts = line.split(':');
+                                    number = parts[0].trim();
+                                    id = parts[1].trim();
+                                } else {
+                                    number = line.trim();
+                                    id = "id_" + Math.floor(100000 + Math.random() * 900000).toString();
+                                }
+
+                                if (number) {
+                                    manualNumbers.push({ number: number, number_id: id, service: serviceName, country: countryName, rate: customRate, isUsed: false });
                                     count++;
                                 }
                             });
@@ -1043,21 +1068,6 @@ bot.on('message', async (msg) => {
                 const iconCircle = parts[2] || "🟢";
                 
                 fakeServices.push({ name: sName, flag: emojiFlag, icon: iconCircle });
-                bot.sendMessage(chatId, `✅ Added fake service: **${sName}** with identifier ${emojiFlag}`, { parse_mode: "Markdown" });
-            } else {
-                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Flag Emoji` \nExample: `IMO 📱 🟢`", { parse_mode: "Markdown" });
-            }
-            delete adminActionState[userId];
-            return;
-        }
-        if (action === 'adding_fake_country') {
-            const parts = msgText.trim().split(/\s+/);
-            if (parts.length >= 3) {
-                const cName = parts[0];
-                const cFlag = parts[1];
-                const cCode = parts[2];
-                
-                fakeCountries.push({ name: cName, flag: cFlag, code: cCode });
                 bot.sendMessage(chatId, `✅ Added fake country: **${cName}** (${cFlag}) with Code: \`+${cCode}\``, { parse_mode: "Markdown" });
             } else {
                 bot.sendMessage(chatId, "❌ Invalid format. Use: `CountryName Flag Code` \nExample: `Singapore 🇸🇬 65`", { parse_mode: "Markdown" });
