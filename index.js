@@ -865,12 +865,79 @@ bot.on('callback_query', async (query) => {
 // --- MESSAGE HANDLING ---
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
+    // Ekhane message ba caption, jeta paowa jabe sheti ke text hishebe nibo
     const msgText = msg.text || msg.caption || "";
     const userId = msg.from?.id;
     if (!userId) return;
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
+
+    // --- NUMADD COMMAND HANDLING (FIXED CAPTION DETECTION) ---
+    // Command ti msgText ba caption jekono jaigai thaklei kaj korbe
+    if (isAdmin(userId) && (msgText.startsWith('/numadd') || (msg.caption && msg.caption.startsWith('/numadd')))) {
+        
+        const commandLine = msg.caption || msg.text;
+        const parts = commandLine.split(' ');
+        
+        if (parts.length < 4) {
+            return bot.sendMessage(chatId, "❌ Invalid command. Format: `/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05`");
+        }
+        
+        const serviceName = parts[1].toLowerCase();
+        const countryName = parts[2].toLowerCase();
+        const customRate = parseFloat(parts[3]);
+
+        if (isNaN(customRate)) {
+            return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
+        }
+
+        if (!services[serviceName]) {
+            services[serviceName] = { name: serviceName, countries: [], rates: {} };
+        }
+        services[serviceName].rates[countryName] = customRate;
+        if (!services[serviceName].countries.includes(countryName)) {
+            services[serviceName].countries.push(countryName);
+        }
+
+        // File process korar logic
+        if (msg.document) {
+            try {
+                const fileLink = await bot.getFileLink(msg.document.file_id);
+                https.get(fileLink, (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => { data += chunk; });
+                    res.on('end', () => {
+                        const lines = data.replace(/\r/g, '').split('\n');
+                        let count = 0;
+                        lines.forEach(line => {
+                            if (!line.trim()) return;
+                            const [number, id] = line.split(':');
+                            if (number && id) {
+                                manualNumbers.push({ 
+                                    number: number.trim(), 
+                                    number_id: id.trim(), 
+                                    service: serviceName, 
+                                    country: countryName, 
+                                    isUsed: false 
+                                });
+                                count++;
+                            }
+                        });
+                        bot.sendMessage(chatId, `✅ Success! ${count} numbers added for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
+                    });
+                });
+            } catch (err) {
+                bot.sendMessage(chatId, "❌ File download error.");
+            }
+        } else {
+            bot.sendMessage(chatId, "⚠️ Command receive hoyeche, kintu file attach korenni.");
+        }
+        return;
+    }
+
+    // (Baki code ager motoi thakbe...)
+
 
     // --- FILE AND TEXT BULK COMMAND HANDLING ---
     if (isAdmin(userId) && msgText.startsWith('/bulk')) {
