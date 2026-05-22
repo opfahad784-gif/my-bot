@@ -80,7 +80,7 @@ function startFakeOtpLoop() {
             const fakeGroupMsg = `𓆩𓆩.${randCountry.flag}${randService.name}${randService.icon}𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                  `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝐲 » ${randCountry.name}\n` +
                                  `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
-                                 `🔐ᯓ𝙾𝚃𝙿 » \`${randomOtp}\`\n` +
+                                 `🔐ᯓ𝙾𝚃🔑 » \`${randomOtp}\`\n` +
                                  `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${fakeReward}`;
 
             bot.sendMessage(config.otpUsername, fakeGroupMsg, { 
@@ -96,7 +96,7 @@ function startFakeOtpLoop() {
 startFakeOtpLoop();
 
 setInterval(async () => {
-    let trafficText = "📊 **𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥 𝗨𝗣加快**\n\n";
+    let trafficText = "📊 **𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥 𝗨𝗣ডাউন**\n\n";
     const serviceKeys = Object.keys(otpTraffic);
     
     if (serviceKeys.length === 0) {
@@ -167,7 +167,7 @@ const getCountryByPattern = (pattern) => {
         "689": "French Polynesia", "241": "Gabon", "220": "Gambia", "995": "Georgia", "49": "Germany",
         "233": "Ghana", "350": "Gibraltar", "30": "Greece", "299": "Greenland", "1473": "Grenada",
         "1671": "Guam", "502": "Guatemala", "441481": "Guernsey", "224": "Guinea", "245": "Guinea-Bissau",
-        "592": "Guyana", "509": "Haiti", "504": "Honduras", "852": "Hong Kong", "36": "Hungary",
+        "592": "Guyana", "502": "Guatemala", "509": "Haiti", "504": "Honduras", "852": "Hong Kong", "36": "Hungary",
         "354": "Iceland", "91": "India", "62": "Indonesia", "98": "Iran", "964": "Iraq",
         "353": "Ireland", "441624": "Isle of Man", "972": "Israel", "39": "Italy", "225": "Ivory Coast",
         "1876": "Jamaica", "81": "Japan", "441534": "Jersey", "962": "Jordan", "7": "Russia/Kazakhstan",
@@ -364,7 +364,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_bulk_add") {
             if (!isAdmin(userId)) return;
-            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: Send `/bulkadd servicename countryname perotprate` command with text file attached.");
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: Send `/bulkadd servicename countryname perotprate` format trigger text first.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -734,9 +734,9 @@ bot.on('callback_query', async (query) => {
                         assignedNumbers.push(numData);
 
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                          `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
+                                          `${flag} ᯓ𝙲𝚘𝚞nunтку » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝒐𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝒐𝚐 𝙵𝚘rar 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -771,7 +771,7 @@ bot.on('callback_query', async (query) => {
                                     bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                     
                                     const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                      `${flag} ᯓ𝙲𝚘𝚞nunтку » ${country}\n` +
+                                                      `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝒚 » ${country}\n` +
                                                       `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
                                                       `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n\n` +
                                                       `Your verification code is: ${otpRes.data.otp}. Do not share with anyone.`;
@@ -782,7 +782,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝚢 » ${country}\n` +
+                                                     `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝒚 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -888,13 +888,11 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // --- BULKADD COMMAND WITH ATTACHED FILE HANDLING ---
-    if (isAdmin(userId) && (msgText.startsWith('/bulkadd') || (msg.caption && msg.caption.startsWith('/bulkadd')))) {
-        const commandLine = msg.caption || msg.text;
-        const parts = commandLine.split(' ');
-        
+    // --- TEXT BULKADD STAGE 1: COMMAND RECEIVE ---
+    if (isAdmin(userId) && msgText.startsWith('/bulkadd') && !msg.document) {
+        const parts = msgText.split(' ');
         if (parts.length < 4) {
-            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkadd servicename countryname perotprate` with text file attached.");
+            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkadd servicename countryname perotprate` format command.");
         }
         
         const serviceName = parts[1].toLowerCase();
@@ -904,6 +902,24 @@ bot.on('message', async (msg) => {
         if (isNaN(customRate)) {
             return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
         }
+
+        // Store configuration details temporarily inside state
+        adminActionState[userId] = {
+            step: 'awaiting_bulk_file',
+            service: serviceName,
+            country: countryName,
+            rate: customRate
+        };
+
+        return bot.sendMessage(chatId, "✉️ **Send your file now**");
+    }
+
+    // --- BULKADD STAGE 2: CAPTURING INCOMING FILE ---
+    if (isAdmin(userId) && msg.document && adminActionState[userId] && adminActionState[userId].step === 'awaiting_bulk_file') {
+        const bulkConfig = adminActionState[userId];
+        const serviceName = bulkConfig.service;
+        const countryName = bulkConfig.country;
+        const customRate = bulkConfig.rate;
 
         if (!services[serviceName]) {
             services[serviceName] = { name: serviceName, countries: [], rates: {} };
@@ -916,38 +932,76 @@ bot.on('message', async (msg) => {
             services[serviceName].countries.push(countryName);
         }
 
-        if (msg.document) {
-            try {
-                const fileLink = await bot.getFileLink(msg.document.file_id);
-                https.get(fileLink, (res) => {
-                    let data = '';
-                    res.on('data', (chunk) => { data += chunk; });
-                    res.on('end', () => {
-                        const lines = data.replace(/\r/g, '').split('\n');
-                        let count = 0;
-                        lines.forEach(line => {
-                            if (!line.trim()) return;
-                            const [number, id] = line.split(':');
-                            if (number && id) {
-                                manualNumbers.push({ 
-                                    number: number.trim(), 
-                                    number_id: id.trim(), 
-                                    service: serviceName, 
-                                    country: countryName, 
-                                    rate: customRate,
-                                    isUsed: false 
-                                });
-                                count++;
-                            }
-                        });
-                        bot.sendMessage(chatId, `✅ Success! ${count} numbers added from file for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
+        try {
+            const fileLink = await bot.getFileLink(msg.document.file_id);
+            https.get(fileLink, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    const lines = data.replace(/\r/g, '').split('\n');
+                    let count = 0;
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        const [number, id] = line.split(':');
+                        if (number && id) {
+                            manualNumbers.push({ 
+                                number: number.trim(), 
+                                number_id: id.trim(), 
+                                service: serviceName, 
+                                country: countryName, 
+                                rate: customRate,
+                                isUsed: false 
+                            });
+                            count++;
+                        }
                     });
+                    delete adminActionState[userId]; // Reset state
+                    bot.sendMessage(chatId, `✅ Success! ${count} numbers add hoyeche from your file for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
                 });
-            } catch (err) {
-                bot.sendMessage(chatId, "❌ File download error.");
+            });
+        } catch (err) {
+            bot.sendMessage(chatId, "❌ File download error.");
+        }
+        return;
+    }
+
+    // --- CAPTURING COMMAND IN CAPTION DIRECTLY (ALTERNATIVE BACKWARD COMPATIBILITY) ---
+    if (isAdmin(userId) && msg.document && msg.caption && msg.caption.startsWith('/bulkadd')) {
+        const parts = msg.caption.split(' ');
+        if (parts.length >= 4) {
+            const serviceName = parts[1].toLowerCase();
+            const countryName = parts[2].toLowerCase();
+            const customRate = parseFloat(parts[3]);
+
+            if (!isNaN(customRate)) {
+                if (!services[serviceName]) services[serviceName] = { name: serviceName, countries: [], rates: {} };
+                if (!services[serviceName].rates) services[serviceName].rates = {};
+                if (!services[serviceName].countries) services[serviceName].countries = [];
+
+                services[serviceName].rates[countryName] = customRate;
+                if (!services[serviceName].countries.includes(countryName)) services[serviceName].countries.push(countryName);
+
+                try {
+                    const fileLink = await bot.getFileLink(msg.document.file_id);
+                    https.get(fileLink, (res) => {
+                        let data = '';
+                        res.on('data', (chunk) => { data += chunk; });
+                        res.on('end', () => {
+                            const lines = data.replace(/\r/g, '').split('\n');
+                            let count = 0;
+                            lines.forEach(line => {
+                                if (!line.trim()) return;
+                                const [number, id] = line.split(':');
+                                if (number && id) {
+                                    manualNumbers.push({ number: number.trim(), number_id: id.trim(), service: serviceName, country: countryName, rate: customRate, isUsed: false });
+                                    count++;
+                                }
+                            });
+                            bot.sendMessage(chatId, `✅ Success! ${count} numbers added via direct caption file.`);
+                        });
+                    });
+                } catch (e) {}
             }
-        } else {
-            bot.sendMessage(chatId, "⚠️ Command receive hoyeche, kinto apni text file attach korenni. File attach kore command caption e likhun.");
         }
         return;
     }
@@ -966,9 +1020,7 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers of **${service} (${country})** pool completely!`);
     }
 
-    if (isAdmin(userId) && adminActionState[userId]) {
-        const state = adminActionState[userId];
-
+    if (isAdmin(userId) && adminActionState[userId] && typeof adminActionState[userId] === 'string') {
         const action = adminActionState[userId]; 
         
         if (action === 'setting_fake_interval') {
@@ -1068,7 +1120,7 @@ bot.on('message', async (msg) => {
                 delete services[sName];
                 bot.sendMessage(chatId, `🗑 Service **${sName}** has been deleted.`, { parse_mode: "Markdown" });
             } else {
-                bot.sendMessage(chatId, `❌  Service **${sName}** not found.`);
+                bot.sendMessage(chatId, `❌ Service **${sName}** not found.`);
             }
             delete adminActionState[userId];
             return;
