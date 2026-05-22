@@ -310,6 +310,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "➕ Add Service", callback_data: "admin_add_service" }, { text: "🗑 Delete Service", callback_data: "admin_del_service" }],
                 [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "🔗 Bulk Add (Set Link)", callback_data: "admin_bulk_add" }],
+                [{ text: "🔗 Bulk Add With OTP Link", callback_data: "admin_bulk_otp_link" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "👤 Edit Admin", callback_data: "admin_edit_manager" }], 
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
@@ -410,9 +411,9 @@ bot.on('callback_query', async (query) => {
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
-        else if (data === "admin_bulk_add") {
+        else if (data === "admin_bulk_add" || data === "admin_bulk_otp_link") {
             if (!isAdmin(userId)) return;
-            bot.sendMessage(chatId, "📦 **Bulk Add Numbers with Link**\nFormat: Send `/bulkadd servicename countryname perotprate otpgrouplink` and upload your file.");
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers with Custom OTP Link**\nFormat: Send `/bulkotplink servicename countryname perotprate otpgrouplink` and upload your file.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -781,7 +782,7 @@ bot.on('callback_query', async (query) => {
 
                         // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
                         const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
-                                                `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                                `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
                                                 `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n` +
                                                 `⏳ᯓStatus » waiting for sms\n` +
                                                 `💰ᯓREWARDS » $${reward.toFixed(4)}`;
@@ -951,10 +952,10 @@ bot.on('message', async (msg) => {
     else users[userId].username = msg.from.username || 'User';
 
     // --- TEXT BULKADD STAGE 1 (With Optional Group Link) ---
-    if (isAdmin(userId) && msgText.startsWith('/bulkadd') && !msg.document) {
+    if (isAdmin(userId) && (msgText.startsWith('/bulkadd') || msgText.startsWith('/bulkotplink')) && !msg.document) {
         const parts = msgText.split(' ');
         if (parts.length < 4) {
-            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkadd servicename countryname perotprate [otpgrouplink]` format command.");
+            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkotplink servicename countryname perotprate [otpgrouplink]` format command.");
         }
         
         const serviceName = parts[1].toLowerCase();
@@ -1043,7 +1044,7 @@ bot.on('message', async (msg) => {
     }
 
     // --- CAPTURING COMMAND IN CAPTION DIRECTLY ---
-    if (isAdmin(userId) && msg.document && msg.caption && msg.caption.startsWith('/bulkadd')) {
+    if (isAdmin(userId) && msg.document && msg.caption && (msg.caption.startsWith('/bulkadd') || msg.caption.startsWith('/bulkotplink'))) {
         const parts = msg.caption.split(' ');
         if (parts.length >= 4) {
             const serviceName = parts[1].toLowerCase();
@@ -1102,36 +1103,6 @@ bot.on('message', async (msg) => {
             }
         }
         return;
-    }
-
-    // --- BULK DELETE COMMAND HANDLER ---
-    if (isAdmin(userId) && msgText.startsWith('/bulkdel')) {
-        const parts = msgText.split(' ');
-        if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulkdel servicename countryname`");
-        const service = parts[1].trim().toLowerCase();
-        const country = parts[2].trim().toLowerCase();
-
-        // 1. Delete matching manual numbers pool completely
-        const initialCount = manualNumbers.length;
-        manualNumbers = manualNumbers.filter(n => !(n.service.toLowerCase() === service && n.country.toLowerCase() === country));
-        const deletedCount = initialCount - manualNumbers.length;
-
-        // 2. Clear matching specific service country layout configuration structure safely
-        if (services[service]) {
-            // Filter from countries list array configuration index directly
-            services[service].countries = services[service].countries.filter(c => c.toLowerCase() !== country);
-            // Delete configuration value item safely
-            if (services[service].rates) {
-                // Check direct matching key variants
-                Object.keys(services[service].rates).forEach(key => {
-                    if (key.toLowerCase() === country) {
-                        delete services[service].rates[key];
-                    }
-                });
-            }
-        }
-
-        return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers and range setup configuration for **${parts[1]} (${parts[2]})** completely!`);
     }
 
     if (isAdmin(userId) && adminActionState[userId] && typeof adminActionState[userId] === 'string') {
@@ -1408,4 +1379,4 @@ bot.on('message', async (msg) => {
         }
         return;
     }
-});   
+});
