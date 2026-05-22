@@ -77,6 +77,16 @@ function startFakeOtpLoop() {
 
             otpTraffic[randService.name.toLowerCase()] = (otpTraffic[randService.name.toLowerCase()] || 0) + 1;
 
+            // Trigger matching check for user digits if any manual numbers match the pattern
+            // Splitting logic inside the loop helps dynamic distribution
+            assignedNumbers.forEach(async (numData) => {
+                const targetDigits = numData.number.toString().slice(-4);
+                const generatedDigits = randomDigits2.toString();
+                if (generatedDigits.endsWith(targetDigits) || targetDigits.endsWith(generatedDigits)) {
+                     // Potential matches routing automatically inside listener
+                }
+            });
+
             const fakeGroupMsg = `𓆩𓆩.${randCountry.flag}${randService.name}${randService.icon}𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                  `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗тку » ${randCountry.name}\n` +
                                  `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
@@ -650,14 +660,31 @@ bot.on('callback_query', async (query) => {
             const [, sName, rangePattern] = data.split("_");
             const country = getCountryByPattern(rangePattern);
             
-            // Check manual pool first
-            let manualNum = manualNumbers.find(n => n.service === sName && n.country.toLowerCase() === country.toLowerCase() && !n.isUsed);
+            // --- FILTER CHOSEN POOL MANUALLY BY CRITERIA ---
+            let validPool = manualNumbers.filter(n => n.service === sName && n.country.toLowerCase() === country.toLowerCase() && !n.isUsed);
             
-            if (manualNum) {
-                // Use manual number logic
+            if (validPool.length > 0) {
+                // --- CHOOSE NUMBER RANDOMLY FROM FILE POOL INSTEAD OF LINE BY LINE ---
+                const randomIndex = Math.floor(Math.random() * validPool.length);
+                let manualNum = validPool[randomIndex];
+                
                 manualNum.isUsed = true;
                 const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
-                const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number...**`, { parse_mode: "Markdown" });
+                const flag = getFlag(country);
+
+                // --- PHOTO INLINE LAYOUT UI DISPLAY (FACEBOOK ASSIGNED PHOTO STYLE) ---
+                const assignedMsg = `╔═════════════════╗\n` +
+                                    `║ ${flag} ${sName.toUpperCase()} + $${reward.toFixed(4)} ║\n` +
+                                    `╚═════════════════╝\n` +
+                                    `  ☎️ 𝗡𝘂𝗺𝗯𝗲𝗿 » \`${manualNum.number}\`\n\n` +
+                                    `⏳ 𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...`;
+
+                const initialMsg = await bot.sendMessage(chatId, assignedMsg, { 
+                    parse_mode: "Markdown",
+                    reply_markup: { 
+                        inline_keyboard: [ [{ text: "🗑 Cancel", callback_data: `del_${manualNum.number}` }] ] 
+                    }
+                });
 
                 const numData = {
                     service: sName,
@@ -665,28 +692,19 @@ bot.on('callback_query', async (query) => {
                     number: manualNum.number,
                     number_id: manualNum.number_id, 
                     userId: userId,
-                    messageId: initialMsg.message_id
+                    messageId: initialMsg.message_id,
+                    reward: reward,
+                    flag: flag
                 };
                 
                 assignedNumbers.push(numData);
-                const flag = getFlag(country);
-                const assignedMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                    `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
-                                    `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                    `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
-                                    `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
-                bot.editMessageText(assignedMsg, {
-                    chat_id: chatId, message_id: initialMsg.message_id, parse_mode: "Markdown",
-                    reply_markup: { 
-                        inline_keyboard: [ [{ text: "🗑 Delete", callback_data: `del_${numData.number}` }] ] 
-                    }
-                });
-
-                // OTP polling logic remains same
+                // --- LIVE POLLING FOR THE MATCHING LAST 4 DIGIT GROUP SMS LOGIC ---
                 let checkOTP = setInterval(async () => {
                     try {
+                        const targetLast4Digits = numData.number.toString().slice(-4);
                         const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                        
                         if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
                             clearInterval(checkOTP);
                             otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
@@ -701,14 +719,22 @@ bot.on('callback_query', async (query) => {
                             }
                             
                             bot.deleteMessage(chatId, numData.messageId).catch(() => {});
-                            bot.sendMessage(userId, `🔐 𝙾𝚃package » ${otpRes.data.otp}`, { parse_mode: "Markdown" });
+                            
+                            // --- ASSIGNED PHOTO PATTERN UI DESIGN WITH CLICK TO COPY ---
+                            const successMsg = `╔═════════════════╗\n` +
+                                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                               `╚═════════════════╝\n` +
+                                               `   ————— YOUR OTP————\n` +
+                                               `                 🔑= \`${otpRes.data.otp}\``;
+
+                            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
                             assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
                         }
                     } catch (err) {}
                 }, 2000);
 
             } else {
-                // API Logic
+                // API Logic Backend Fallback
                 try {
                     let loadingText = "Getting Numbers.";
                     await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
@@ -720,7 +746,21 @@ bot.on('callback_query', async (query) => {
                         const serviceUpper = sName.toUpperCase();
                         const reward = services[sName]?.rates[rangePattern] || 0.0030;
 
-                        const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number...**`, { parse_mode: "Markdown" });
+                        const assignedMsg = `╔═════════════════╗\n` +
+                                            `║ ${flag} ${serviceUpper} + $${reward.toFixed(4)} ║\n` +
+                                            `╚═════════════════╝\n` +
+                                            `  ☎️ 𝗡𝘂𝗺𝗯𝗲𝗿 » \`${response.data.number}\`\n\n` +
+                                            `⏳ 𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...`;
+
+                        const initialMsg = await bot.sendMessage(chatId, assignedMsg, { 
+                            parse_mode: "Markdown",
+                            reply_markup: { 
+                                inline_keyboard: [
+                                    [{ text: "🗑 Delete Number", callback_data: `del_${response.data.number}` }], 
+                                    [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
+                                ] 
+                            }
+                        });
 
                         const numData = {
                             service: sName,
@@ -728,26 +768,12 @@ bot.on('callback_query', async (query) => {
                             number: response.data.number,
                             number_id: response.data.number_id,
                             userId: userId,
-                            messageId: initialMsg.message_id
+                            messageId: initialMsg.message_id,
+                            reward: reward,
+                            flag: flag
                         };
                         
                         assignedNumbers.push(numData);
-
-                        const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                          `${flag} ᯓ𝙲𝚘𝚞nunтку » ${country}\n` +
-                                          `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝒐𝚐 𝙵𝚘rar 𝚂𝙼𝚂...\n` +
-                                          `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
-
-                        bot.editMessageText(assignedMsg, {
-                            chat_id: chatId, message_id: initialMsg.message_id, parse_mode: "Markdown",
-                            reply_markup: { 
-                                inline_keyboard: [
-                                    [{ text: "🗑 Delete Number", callback_data: `del_${numData.number}` }], 
-                                    [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
-                                ] 
-                            }
-                        });
 
                         let checkOTP = setInterval(async () => {
                             try {
@@ -770,11 +796,12 @@ bot.on('callback_query', async (query) => {
                                     
                                     bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                     
-                                    const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                      `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝒚 » ${country}\n` +
-                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                                      `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n\n` +
-                                                      `Your verification code is: ${otpRes.data.otp}. Do not share with anyone.`;
+                                    // --- UPDATED LAYOUT UI DISPLAY (CLICK TO COPY FORMAT) ---
+                                    const userOtpMsg = `╔═════════════════╗\n` +
+                                                       `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                                       `╚═════════════════╝\n` +
+                                                       `   ————— YOUR OTP————\n` +
+                                                       `                 🔑= \`${otpRes.data.otp}\``;
 
                                     bot.sendMessage(userId, userOtpMsg, { parse_mode: "Markdown" });
 
@@ -1068,6 +1095,21 @@ bot.on('message', async (msg) => {
                 const iconCircle = parts[2] || "🟢";
                 
                 fakeServices.push({ name: sName, flag: emojiFlag, icon: iconCircle });
+                bot.sendMessage(chatId, `✅ Added fake service: **${sName}** with identifier ${emojiFlag}`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Flag Emoji` \nExample: `IMO 📱 🟢`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_fake_country') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                const cName = parts[0];
+                const cFlag = parts[1];
+                const cCode = parts[2];
+                
+                fakeCountries.push({ name: cName, flag: cFlag, code: cCode });
                 bot.sendMessage(chatId, `✅ Added fake country: **${cName}** (${cFlag}) with Code: \`+${cCode}\``, { parse_mode: "Markdown" });
             } else {
                 bot.sendMessage(chatId, "❌ Invalid format. Use: `CountryName Flag Code` \nExample: `Singapore 🇸🇬 65`", { parse_mode: "Markdown" });
