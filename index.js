@@ -364,8 +364,7 @@ bot.on('callback_query', async (query) => {
         }
         else if (data === "admin_bulk_add") {
             if (!isAdmin(userId)) return;
-            adminActionState[userId] = 'bulk_step1';
-            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: `/bulk servicename countryname` or `/numadd servicename countryname rate`\nSend this command or upload a .txt file with this command as caption.");
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: Send `/bulkadd servicename countryname perotprate` command with text file attached.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -657,7 +656,7 @@ bot.on('callback_query', async (query) => {
             if (manualNum) {
                 // Use manual number logic
                 manualNum.isUsed = true;
-                const reward = services[sName]?.rates[rangePattern] || 0.0030;
+                const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
                 const initialMsg = await bot.sendMessage(chatId, `⏳ **Getting Number...**`, { parse_mode: "Markdown" });
 
                 const numData = {
@@ -693,6 +692,14 @@ bot.on('callback_query', async (query) => {
                             otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
                             if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
                             users[userId].balance += reward;
+                            
+                            if (users[userId].referredBy && users[users[userId].referredBy]) {
+                                const refId = users[userId].referredBy;
+                                const commission = reward * REFERRAL_COMMISSION;
+                                users[refId].balance += commission;
+                                users[refId].earnings += commission;
+                            }
+                            
                             bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                             bot.sendMessage(userId, `🔐 𝙾𝚃package » ${otpRes.data.otp}`, { parse_mode: "Markdown" });
                             assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
@@ -729,7 +736,7 @@ bot.on('callback_query', async (query) => {
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
                                           `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝗻𝒐𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝒐𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -764,9 +771,9 @@ bot.on('callback_query', async (query) => {
                                     bot.deleteMessage(chatId, numData.messageId).catch(() => {});
                                     
                                     const userOtpMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                      `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
+                                                      `${flag} ᯓ𝙲𝚘𝚞nunтку » ${country}\n` +
                                                       `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                                      `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n\n` +
+                                                      `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n\n` +
                                                       `Your verification code is: ${otpRes.data.otp}. Do not share with anyone.`;
 
                                     bot.sendMessage(userId, userOtpMsg, { parse_mode: "Markdown" });
@@ -777,7 +784,7 @@ bot.on('callback_query', async (query) => {
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                      `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝚢 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
-                                                     `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
+                                                     `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
                                     
                                     bot.sendMessage(config.otpUsername, groupMsg, { 
@@ -881,13 +888,13 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // --- NUMADD COMMAND HANDLING (FIXED MAPPING AND EXTRA DATA PERSISTENCE) ---
-    if (isAdmin(userId) && (msgText.startsWith('/numadd') || (msg.caption && msg.caption.startsWith('/numadd')))) {
+    // --- BULKADD COMMAND WITH ATTACHED FILE HANDLING ---
+    if (isAdmin(userId) && (msgText.startsWith('/bulkadd') || (msg.caption && msg.caption.startsWith('/bulkadd')))) {
         const commandLine = msg.caption || msg.text;
         const parts = commandLine.split(' ');
         
         if (parts.length < 4) {
-            return bot.sendMessage(chatId, "❌ Invalid command. Format: `/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05`");
+            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkadd servicename countryname perotprate` with text file attached.");
         }
         
         const serviceName = parts[1].toLowerCase();
@@ -933,74 +940,16 @@ bot.on('message', async (msg) => {
                                 count++;
                             }
                         });
-                        bot.sendMessage(chatId, `✅ Success! ${count} numbers added for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
+                        bot.sendMessage(chatId, `✅ Success! ${count} numbers added from file for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
                     });
                 });
             } catch (err) {
                 bot.sendMessage(chatId, "❌ File download error.");
             }
         } else {
-            bot.sendMessage(chatId, "⚠️ Command receive hoyeche, kintu file attach korenni.");
+            bot.sendMessage(chatId, "⚠️ Command receive hoyeche, kinto apni text file attach korenni. File attach kore command caption e likhun.");
         }
         return;
-    }
-
-    // --- FILE AND TEXT BULK COMMAND HANDLING ---
-    if (isAdmin(userId) && msgText.startsWith('/bulk')) {
-        const parts = msgText.split(' ');
-        if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulk servicename countryname` (As command or file caption)");
-        const service = parts[1].trim().toLowerCase();
-        const country = parts[2].trim().toLowerCase();
-
-        if (!services[service]) {
-            services[service] = { name: service, countries: [], rates: {} };
-        }
-        if (!services[service].countries) services[service].countries = [];
-        if (!services[service].rates) services[service].rates = {};
-
-        if (!services[service].countries.includes(country)) {
-            services[service].countries.push(country);
-        }
-        if (!services[service].rates[country]) {
-            services[service].rates[country] = 0.0030; 
-        }
-
-        if (msg.document) {
-            try {
-                const fileLink = await bot.getFileLink(msg.document.file_id);
-                https.get(fileLink, (res) => {
-                    let data = '';
-                    res.on('data', (chunk) => { data += chunk; });
-                    res.on('end', () => {
-                        const lines = data.replace(/\r/g, '').split('\n');
-                        let count = 0;
-                        lines.forEach(line => {
-                            if (!line.trim()) return;
-                            const [number, id] = line.split(':');
-                            if (number && id) {
-                                manualNumbers.push({ 
-                                    number: number.trim(), 
-                                    number_id: id.trim(), 
-                                    service: service, 
-                                    country: country, 
-                                    isUsed: false 
-                                });
-                                count++;
-                            }
-                        });
-                        bot.sendMessage(chatId, `✅ Bulk file processed successfully!\nAdded ${count} manual numbers for **${service} (${country})** pool!`);
-                    });
-                }).on('error', (e) => {
-                    bot.sendMessage(chatId, "❌ File content download korte sombhob hoyni.");
-                });
-                return;
-            } catch (err) {
-                return bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
-            }
-        } else {
-            adminActionState[userId] = { action: 'bulk_data', service: service, country: country };
-            return bot.sendMessage(chatId, `✅ Text entry mode set for **${service} (${country})**.\nNow send the list of numbers (one per line, format: number:id).`);
-        }
     }
 
     // --- BULK DELETE COMMAND HANDLER ---
@@ -1019,21 +968,6 @@ bot.on('message', async (msg) => {
 
     if (isAdmin(userId) && adminActionState[userId]) {
         const state = adminActionState[userId];
-        
-        if (state && state.action === 'bulk_data') {
-            const lines = msgText.replace(/\r/g, '').split('\n');
-            let count = 0;
-            lines.forEach(line => {
-                if (!line.trim()) return;
-                const [number, id] = line.split(':');
-                if (number && id) {
-                    manualNumbers.push({ number: number.trim(), number_id: id.trim(), service: state.service, country: state.country, isUsed: false });
-                    count++;
-                }
-            });
-            delete adminActionState[userId];
-            return bot.sendMessage(chatId, `✅ Added ${count} numbers for ${state.service} (${state.country}) successfully!`);
-        }
 
         const action = adminActionState[userId]; 
         
@@ -1134,7 +1068,7 @@ bot.on('message', async (msg) => {
                 delete services[sName];
                 bot.sendMessage(chatId, `🗑 Service **${sName}** has been deleted.`, { parse_mode: "Markdown" });
             } else {
-                bot.sendMessage(chatId, `❌ Service **${sName}** not found.`);
+                bot.sendMessage(chatId, `❌  Service **${sName}** not found.`);
             }
             delete adminActionState[userId];
             return;
