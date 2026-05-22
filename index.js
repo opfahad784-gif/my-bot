@@ -323,40 +323,33 @@ const sendAdminPanel = (chatId) => {
     });
 };
 
-// --- AUTOMATIC GROUP CHAT OTP LISTENER (CRITICAL FIX FOR 4-DIGIT MATCHING) ---
+// --- AUTOMATIC GROUP CHAT OTP LISTENER ---
 bot.on('message', async (groupMsg) => {
     if (!groupMsg.text) return;
     
-    // Check if message is coming from your defined OTP channel/group
     const isOtpGroup = groupMsg.chat.username === config.otpUsername.replace('@', '') || groupMsg.chat.id.toString() === config.otpUsername;
     if (!isOtpGroup) return;
 
     const text = groupMsg.text;
     
-    // Extract potential OTP and Number from the layout pattern
     let incomingOtp = "";
     let otpMatch = text.match(/(?:𝙾𝚃🔑|𝙾𝚃package)\s*»\s*`?(\d+)/i);
     if (otpMatch) incomingOtp = otpMatch[1];
 
-    if (!incomingOtp) return; // No OTP found in group post, skip scanning
+    if (!incomingOtp) return; 
 
-    // Scan through all currently active/waiting numbers assigned to users
     assignedNumbers.forEach(async (numData) => {
         const rawNumStr = numData.number.toString();
         const targetLast4 = rawNumStr.slice(-4);
 
-        // Check if the group text contains the last 4 digits of this user's active number
         if (text.includes(targetLast4)) {
             const userId = numData.userId;
 
-            // Delete waiting status message
             bot.deleteMessage(userId, numData.messageId).catch(() => {});
 
-            // Update user balance & credit reward
             if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
             users[userId].balance += numData.reward;
 
-            // Handle referral payout logic safely
             if (users[userId].referredBy && users[users[userId].referredBy]) {
                 const refId = users[userId].referredBy;
                 const commission = numData.reward * REFERRAL_COMMISSION;
@@ -365,7 +358,6 @@ bot.on('message', async (groupMsg) => {
                 bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
             }
 
-            // --- PHOTO INLINE FORMAT SUCCESS MESSAGE (CLICK TO COPY) ---
             const successMsg = `╔═════════════════╗\n` +
                                `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
                                `╚═════════════════╝\n` +
@@ -374,7 +366,6 @@ bot.on('message', async (groupMsg) => {
 
             bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
 
-            // Remove from waiting queue
             assignedNumbers = assignedNumbers.filter(n => n.number !== numData.number);
         }
     });
@@ -718,22 +709,22 @@ bot.on('callback_query', async (query) => {
                 const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
                 const flag = getFlag(country);
 
-                // --- PHOTO INLINE LAYOUT UI DISPLAY (SCREENSHOT PERFECT MATCH) ---
-                const assignedCaption = `╔═════════════════╗\n` +
-                                                `║ ${flag} ${serviceUpper} + $${reward.toFixed(4)} ║\n` +
-                                                `╚═════════════════╝\n` +
-                                                `📱 𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n\n` +
-                                                `⏳ 𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...`;
+                // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
+                const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                        `{flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                        `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${manualNum.number}\`\n` +
+                                        `⏳ᯓStatus » waiting for sms\n` +
+                                        `💰ᯓREWARDS » $${reward.toFixed(4)}`;
 
-                        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+                // Clear layout menu, post pure dynamic requested text layout with required buttons
+                await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
 
-                        const initialMsg = await bot.sendPhoto(chatId, 'https://placehold.co/600x337/313338/ffffff?text=NH+OTP+SERVER', {
-                            caption: assignedCaption,
+                const initialMsg = await bot.sendMessage(chatId, assignedCaption, {
                             parse_mode: "Markdown",
                             reply_markup: { 
                                 inline_keyboard: [
                                     [{ text: "🗑 Delete Number", callback_data: `del_${response.data.number}` }], 
-                                    [{ text: "📱 OTP GROUP HERE", url: config.otpGroup }]
+                                    [{ text: "📱 Otp Group", url: config.otpGroup }]
                                 ] 
                             }
                         });
@@ -783,7 +774,7 @@ bot.on('callback_query', async (query) => {
                                     const rawNum = numData.number.toString();
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
-                                    const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
+                                    const groupMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
                                                      `${flag} ᯓ\u13df\u13eb\u13cdun\u13d9\u13d5\u13ec » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n` +
@@ -1035,14 +1026,14 @@ bot.on('message', async (msg) => {
     if (isAdmin(userId) && msgText.startsWith('/bulkdel')) {
         const parts = msgText.split(' ');
         if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulkdel servicename countryname`");
-        const service = parts[1].trim();
-        const country = parts[2].trim();
+        const service = parts[1].trim().toLowerCase();
+        const country = parts[2].trim().toLowerCase();
 
         const initialCount = manualNumbers.length;
-        manualNumbers = manualNumbers.filter(n => !(n.service.toLowerCase() === service.toLowerCase() && n.country.toLowerCase() === country.toLowerCase()));
+        manualNumbers = manualNumbers.filter(n => !(n.service.toLowerCase() === service && n.country.toLowerCase() === country));
         const deletedCount = initialCount - manualNumbers.length;
 
-        return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers of **${service} (${country})** pool completely!`);
+        return bot.sendMessage(chatId, `🗑 Removed ${deletedCount} manual numbers of **${parts[1]} (${parts[2]})** pool completely!`);
     }
 
     if (isAdmin(userId) && adminActionState[userId] && typeof adminActionState[userId] === 'string') {
