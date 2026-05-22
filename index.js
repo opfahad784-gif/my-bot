@@ -78,7 +78,7 @@ function startFakeOtpLoop() {
             otpTraffic[randService.name.toLowerCase()] = (otpTraffic[randService.name.toLowerCase()] || 0) + 1;
 
             const fakeGroupMsg = `𓆩𓆩.${randCountry.flag}${randService.name}${randService.icon}𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                 `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${randCountry.name}\n` +
+                                 `${randCountry.flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝐲 » ${randCountry.name}\n` +
                                  `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                  `🔐ᯓ𝙾𝚃𝙿 » \`${randomOtp}\`\n` +
                                  `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${fakeReward}`;
@@ -147,6 +147,7 @@ const findUser = (input) => {
 };
 
 const getCountryByPattern = (pattern) => {
+    if(!pattern) return "Unknown Country";
     const patternMap = {
         "93": "Afghanistan", "355": "Albania", "213": "Algeria", "1684": "American Samoa", "376": "Andorra",
         "244": "Angola", "1264": "Anguilla", "672": "Antarctica", "1268": "Antigua and Barbuda", "54": "Argentina",
@@ -199,6 +200,14 @@ const getCountryByPattern = (pattern) => {
     };
     
     const cleanPattern = pattern.startsWith('+') ? pattern.substring(1) : pattern;
+    
+    // Check text name directly
+    for (const key in patternMap) {
+        if (patternMap[key].toLowerCase() === cleanPattern.toLowerCase()) {
+            return patternMap[key];
+        }
+    }
+
     const sortedKeys = Object.keys(patternMap).sort((a, b) => b.length - a.length);
     for (const key of sortedKeys) {
         if (cleanPattern.startsWith(key)) return patternMap[key];
@@ -220,7 +229,7 @@ const getFlag = (countryName) => {
         "colombia": "🇨🇴", "congo": "🇨🇬", "costa rica": "🇨🇷", "croatia": "🇭🇷",
         "cuba": "🇨🇺", "cyprus": "🇨🇾", "czech republic": "🇨🇿", "denmark": "🇩🇰",
         "djibouti": "🇩🇯", "dominican republic": "🇩🇴", "ecuador": "🇪🇨", "egypt": "🇪🇬",
-        "el salvador": "🇸🇻", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
+        "el salvador": "🇸𝑽", "estonia": "🇪🇪", "ethiopia": "🇪🇹", "fiji": "🇫🇯",
         "finland": "🇫🇮", "france": "🇫🇷", "gabon": "🇬🇦", "gambia": "🇬🇲",
         "georgia": "🇬🇪", "germany": "🇩🇪", "ghana": "🇬🇭", "greece": "🇬🇷",
         "guatemala": "🇬🇹", "guinea": "🇬🇳", "haiti": "🇭🇹", "honduras": "🇭🇳",
@@ -356,7 +365,7 @@ bot.on('callback_query', async (query) => {
         else if (data === "admin_bulk_add") {
             if (!isAdmin(userId)) return;
             adminActionState[userId] = 'bulk_step1';
-            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: `/bulk servicename countryname rate` or `/numadd servicename countryname rate`\nSend this command or upload a .txt file with this command as caption.");
+            bot.sendMessage(chatId, "📦 **Bulk Add Numbers**\nFormat: `/bulk servicename countryname` or `/numadd servicename countryname rate`\nSend this command or upload a .txt file with this command as caption.");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -643,7 +652,7 @@ bot.on('callback_query', async (query) => {
             const country = getCountryByPattern(rangePattern);
             
             // Check manual pool first
-            let manualNum = manualNumbers.find(n => n.service === sName && n.country === country && !n.isUsed);
+            let manualNum = manualNumbers.find(n => n.service === sName && n.country.toLowerCase() === country.toLowerCase() && !n.isUsed);
             
             if (manualNum) {
                 // Use manual number logic
@@ -663,7 +672,7 @@ bot.on('callback_query', async (query) => {
                 assignedNumbers.push(numData);
                 const flag = getFlag(country);
                 const assignedMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
-                                    `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                    `${flag} ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝐲 » ${country}\n` +
                                     `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
                                     `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                     `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -720,7 +729,7 @@ bot.on('callback_query', async (query) => {
                         const assignedMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝙰𝚂𝚂𝙸𝙶𝙽𝙴𝙳 .𓆪𓆪\n` +
                                           `${flag} ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
                                           `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`${numData.number}\`\n` +
-                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝚗𝚘𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
+                                          `⏳ ᯓ𝚂𝚃𝙰𝚃𝚄𝚂 » 𝚆𝚊𝚒𝚝𝚒𝗻𝒐𝚐 𝙵𝚘𝚛 𝚂𝙼𝚂...\n` +
                                           `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
 
                         bot.editMessageText(assignedMsg, {
@@ -766,7 +775,7 @@ bot.on('callback_query', async (query) => {
                                     let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
 
                                     const groupMsg = `𓆩𓆩.${flag}${serviceUpper}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
-                                                     `${flag} ᯓ𝙲𝚘𝒖nun𝒕𝒓𝚢 » ${country}\n` +
+                                                     `${flag} ᯓ𝙲𝒐𝒖nun𝒕𝒓𝚢 » ${country}\n` +
                                                      `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
                                                      `🔐ᯓ𝙾𝚃𝙿 » \`${otpRes.data.otp}\`\n` +
                                                      `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
@@ -872,67 +881,37 @@ bot.on('message', async (msg) => {
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
 
-    // --- UNIFIED NUMADD COMMAND HANDLING ---
-    if (isAdmin(userId)) {
-        // 1. If file uploaded without caption, save state and ask for command
-        if (msg.document && !msg.caption) {
-            adminActionState[userId] = { action: 'waiting_for_numadd_info', fileId: msg.document.file_id };
-            return bot.sendMessage(chatId, "📁 File received!\n\nEkhon command-ti likhun:\n`/numadd servicename countryname rate`");
+    // --- NUMADD COMMAND HANDLING (FIXED MAPPING AND EXTRA DATA PERSISTENCE) ---
+    if (isAdmin(userId) && (msgText.startsWith('/numadd') || (msg.caption && msg.caption.startsWith('/numadd')))) {
+        const commandLine = msg.caption || msg.text;
+        const parts = commandLine.split(' ');
+        
+        if (parts.length < 4) {
+            return bot.sendMessage(chatId, "❌ Invalid command. Format: `/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05`");
+        }
+        
+        const serviceName = parts[1].toLowerCase();
+        const countryName = parts[2].toLowerCase();
+        const customRate = parseFloat(parts[3]);
+
+        if (isNaN(customRate)) {
+            return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
         }
 
-        // 2. Identify if this message contains the numadd command and file info
-        let isNumaddCmd = false;
-        let cmdText = "";
-        let fileIdToProcess = null;
+        if (!services[serviceName]) {
+            services[serviceName] = { name: serviceName, countries: [], rates: {} };
+        }
+        if (!services[serviceName].rates) services[serviceName].rates = {};
+        if (!services[serviceName].countries) services[serviceName].countries = [];
 
-        if (msg.document && msg.caption && msg.caption.startsWith('/numadd')) {
-            // File + Caption sent together
-            isNumaddCmd = true;
-            cmdText = msg.caption;
-            fileIdToProcess = msg.document.file_id;
-        } else if (msgText.startsWith('/numadd')) {
-            // Text command sent
-            if (msg.document) {
-                // (Fallback)
-                isNumaddCmd = true;
-                cmdText = msgText;
-                fileIdToProcess = msg.document.file_id;
-            } else if (adminActionState[userId]?.action === 'waiting_for_numadd_info') {
-                // Text command sent AFTER a file was uploaded
-                isNumaddCmd = true;
-                cmdText = msgText;
-                fileIdToProcess = adminActionState[userId].fileId;
-                delete adminActionState[userId];
-            } else {
-                return bot.sendMessage(chatId, "❌ File attach korenni! Please file upload kore command din, othoba file er caption e command din.");
-            }
+        services[serviceName].rates[countryName] = customRate;
+        if (!services[serviceName].countries.includes(countryName)) {
+            services[serviceName].countries.push(countryName);
         }
 
-        // 3. Process the file
-        if (isNumaddCmd) {
-            const parts = cmdText.split(' ');
-            if (parts.length < 4) {
-                return bot.sendMessage(chatId, "❌ Invalid command. Use format:\n`/numadd servicename countryname rate`\nExample: `/numadd telegram poland 0.05`");
-            }
-            
-            const serviceName = parts[1].toLowerCase();
-            const countryName = parts[2].toLowerCase();
-            const customRate = parseFloat(parts[3]);
-
-            if (isNaN(customRate)) {
-                return bot.sendMessage(chatId, "❌ Rate dynamic number hote hobe (e.g., 0.05).");
-            }
-
-            if (!services[serviceName]) {
-                services[serviceName] = { name: serviceName, countries: [], rates: {} };
-            }
-            services[serviceName].rates[countryName] = customRate;
-            if (!services[serviceName].countries.includes(countryName)) {
-                services[serviceName].countries.push(countryName);
-            }
-
+        if (msg.document) {
             try {
-                const fileLink = await bot.getFileLink(fileIdToProcess);
+                const fileLink = await bot.getFileLink(msg.document.file_id);
                 https.get(fileLink, (res) => {
                     let data = '';
                     res.on('data', (chunk) => { data += chunk; });
@@ -954,36 +933,45 @@ bot.on('message', async (msg) => {
                                 count++;
                             }
                         });
-                        bot.sendMessage(chatId, `✅ Bulk file processed successfully!\nAdded ${count} manual numbers for **${serviceName} (${countryName})** pool at rate **$${customRate.toFixed(4)}**!`, { parse_mode: "Markdown" });
+                        bot.sendMessage(chatId, `✅ Success! ${count} numbers added for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
                     });
-                }).on('error', (e) => {
-                    bot.sendMessage(chatId, "❌ File content download korte sombhob hoyni.");
                 });
             } catch (err) {
-                bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
+                bot.sendMessage(chatId, "❌ File download error.");
             }
-            return; // Stop further processing for this message
+        } else {
+            bot.sendMessage(chatId, "⚠️ Command receive hoyeche, kintu file attach korenni.");
         }
+        return;
     }
 
     // --- FILE AND TEXT BULK COMMAND HANDLING ---
     if (isAdmin(userId) && msgText.startsWith('/bulk')) {
         const parts = msgText.split(' ');
         if (parts.length < 3) return bot.sendMessage(chatId, "❌ Usage: `/bulk servicename countryname` (As command or file caption)");
-        const service = parts[1].trim();
-        const country = parts[2].trim();
+        const service = parts[1].trim().toLowerCase();
+        const country = parts[2].trim().toLowerCase();
 
-        // If it's an uploaded file (.txt)
+        if (!services[service]) {
+            services[service] = { name: service, countries: [], rates: {} };
+        }
+        if (!services[service].countries) services[service].countries = [];
+        if (!services[service].rates) services[service].rates = {};
+
+        if (!services[service].countries.includes(country)) {
+            services[service].countries.push(country);
+        }
+        if (!services[service].rates[country]) {
+            services[service].rates[country] = 0.0030; 
+        }
+
         if (msg.document) {
             try {
                 const fileLink = await bot.getFileLink(msg.document.file_id);
-                
-                // Fetch file content using https
                 https.get(fileLink, (res) => {
                     let data = '';
                     res.on('data', (chunk) => { data += chunk; });
                     res.on('end', () => {
-                        // Replace Windows line-breaks and split cleanly
                         const lines = data.replace(/\r/g, '').split('\n');
                         let count = 0;
                         lines.forEach(line => {
@@ -1010,7 +998,6 @@ bot.on('message', async (msg) => {
                 return bot.sendMessage(chatId, "❌ File process korte error hoyeche.");
             }
         } else {
-            // Direct text copy-paste method setup
             adminActionState[userId] = { action: 'bulk_data', service: service, country: country };
             return bot.sendMessage(chatId, `✅ Text entry mode set for **${service} (${country})**.\nNow send the list of numbers (one per line, format: number:id).`);
         }
@@ -1033,7 +1020,6 @@ bot.on('message', async (msg) => {
     if (isAdmin(userId) && adminActionState[userId]) {
         const state = adminActionState[userId];
         
-        // Handle Bulk Data Input via text lines
         if (state && state.action === 'bulk_data') {
             const lines = msgText.replace(/\r/g, '').split('\n');
             let count = 0;
@@ -1160,6 +1146,8 @@ bot.on('message', async (msg) => {
                 const sName = parts[0];
                 const pattern = parts.slice(1).join(' ');
                 if (services[sName]) {
+                    if (!services[sName].rates) services[sName].rates = {};
+                    if (!services[sName].countries) services[sName].countries = [];
                     services[sName].rates[pattern] = rate;
                     if (!services[sName].countries.includes(pattern)) services[sName].countries.push(pattern);
                     bot.sendMessage(chatId, `✅ Rate for **${sName} (Pattern: ${pattern})** set to $${rate.toFixed(4)}`, { parse_mode: "Markdown" });
