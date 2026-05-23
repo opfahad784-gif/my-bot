@@ -34,9 +34,7 @@ let adminActionState = {};
 let extraAdmins = [];
 let numberLimit = 1; 
 
-// NEW STATES FOR SEARCH OTP
-let searchOtpState = {};
-let watchingNumbers = [];
+let recentGroupOtps = []; // NEW: Array to store recent group messages for manual search
 
 // TRAFFIC DATA STORE
 let otpTraffic = {}; 
@@ -334,27 +332,23 @@ const sendAdminPanel = (chatId) => {
 bot.on('message', async (groupMsg) => {
     if (!groupMsg.text) return;
     
-    const isOtpGroup = groupMsg.chat.username === config.otpUsername.replace('@', '') || groupMsg.chat.id.toString() === config.otpUsername;
+    const chatIdStr = groupMsg.chat.id.toString();
+    // NEW LOGIC: Also explicitly listen to the provided target group ID -1003958220896
+    const isOtpGroup = groupMsg.chat.username === config.otpUsername.replace('@', '') || chatIdStr === config.otpUsername || chatIdStr === '-1003958220896';
+    
+    if (isOtpGroup) {
+        recentGroupOtps.push(groupMsg.text);
+        if (recentGroupOtps.length > 300) recentGroupOtps.shift(); // Keep latest 300 messages
+    }
+    
     if (!isOtpGroup) return;
 
     const text = groupMsg.text;
-
-    // --- CHECK FOR SEARCH OTP WATCHERS ---
-    watchingNumbers = watchingNumbers.filter(watcher => {
-        if (text.includes(watcher.last4)) {
-            bot.sendMessage(watcher.userId, text, { parse_mode: "Markdown" }).catch(() => {
-                bot.sendMessage(watcher.userId, text).catch(() => {});
-            });
-            return false; // Found match, remove from watching list
-        }
-        return true; // Keep waiting
-    });
 
     assignedNumbers.forEach(async (numData) => {
         const rawNumStr = numData.number.toString();
         const targetLast4 = rawNumStr.slice(-4);
 
-        // --- FIXED MATCHING LOGIC: IF GROUP TEXT INCLUDES USER'S LAST 4 DIGIT, FORWARD IT DIRECTLY ---
         if (text.includes(targetLast4)) {
             const userId = numData.userId;
 
@@ -375,7 +369,7 @@ bot.on('message', async (groupMsg) => {
 
             // Directly forward the full group message text to the user
             bot.sendMessage(userId, text, { parse_mode: "Markdown" }).catch(() => {
-                bot.sendMessage(userId, text).catch(() => {}); // Fallback formatting error eparer jonne
+                bot.sendMessage(userId, text).catch(() => {});
             });
 
             assignedNumbers = assignedNumbers.filter(n => n.number !== numData.number);
@@ -419,13 +413,73 @@ bot.on('callback_query', async (query) => {
             delete broadcastState[userId];
             delete groupSettingState[userId];
             delete adminActionState[userId];
-            delete searchOtpState[userId]; // Reset search state on main menu
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
-        else if (data === "search_otp") {
-            searchOtpState[userId] = true;
-            bot.sendMessage(chatId, "enter your number to get otp");
+        else if (data.startsWith("srcotp_")) {
+            const targetNum = data.split("_")[1];
+            const last4 = targetNum.slice(-4);
+            
+            const numData = assignedNumbers.find(n => n.number === targetNum && n.userId === userId);
+            if (!numData) {
+                return bot.answerCallbackQuery(query.id, { text: "❌ Active number not found!", show_alert: true });
+            }
+
+            // 1. Play "code fetch" animation on the UI
+            try {
+                await bot.editMessageText(`♻️ **code fetch.**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await bot.editMessageText(`♻️ **code fetch..**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await bot.editMessageText(`♻️ **code fetch...**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 600));
+            } catch(e) {}
+            
+            // 2. Check group recent OTP history (-1003958220896)
+            const foundMsg = recentGroupOtps.find(text => text.includes(last4));
+            
+            if (foundMsg) {
+                bot.sendMessage(userId, foundMsg, { parse_mode: "Markdown" }).catch(() => {
+                    bot.sendMessage(userId, foundMsg).catch(() => {});
+                });
+                bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+                
+                // Add balance and remove from assigned
+                const targetIndex = assignedNumbers.findIndex(n => n.number === targetNum && n.userId === userId);
+                if (targetIndex !== -1) {
+                    if (assignedNumbers[targetIndex].checkOTPIteration) clearInterval(assignedNumbers[targetIndex].checkOTPIteration);
+                    if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                    users[userId].balance += assignedNumbers[targetIndex].reward;
+                    
+                    if (users[userId].referredBy && users[users[userId].referredBy]) {
+                        const refId = users[userId].referredBy;
+                        const commission = assignedNumbers[targetIndex].reward * REFERRAL_COMMISSION;
+                        users[refId].balance += commission;
+                        users[refId].earnings += commission;
+                        bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
+                    }
+                    assignedNumbers.splice(targetIndex, 1);
+                }
+            } else {
+                // Not found -> Revert to assigned layout
+                const country = getCountryByPattern(numData.range);
+                const assignedCaption = `𓆩𓆩.${numData.flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                        `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
+                                        `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${numData.number}\`\n` +
+                                        `⏳ᯓStatus » waiting for sms\n` +
+                                        `💰ᯓREWARDS » $${numData.reward.toFixed(4)}`;
+                
+                bot.editMessageText(assignedCaption, {
+                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                    reply_markup: { 
+                        inline_keyboard: [
+                            [{ text: "🔄 Change Number", callback_data: `chg_${numData.service}_${numData.range}_${numData.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${numData.number}` }], 
+                            [{ text: "📱 Otp Group", url: numData.otpGroup || config.otpGroup }]
+                        ] 
+                    }
+                }).catch(() => {});
+                bot.answerCallbackQuery(query.id, { text: "❌ OTP Not Found in Group yet!", show_alert: true });
+            }
         }
         else if (data === "admin_bulk_add" || data === "admin_bulk_otp_link") {
             if (!isAdmin(userId)) return;
@@ -748,7 +802,7 @@ bot.on('callback_query', async (query) => {
                     parse_mode: "Markdown",
                     reply_markup: { 
                         inline_keyboard: [ 
-                            [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${manualNum.number}` }, { text: "🔎 Search otp", callback_data: "search_otp" }],
+                            [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${manualNum.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${manualNum.number}` }],
                             [{ text: "📱 Otp Group", url: targetedOtpGroup }]
                         ] 
                     }
@@ -818,7 +872,7 @@ bot.on('callback_query', async (query) => {
                             parse_mode: "Markdown",
                             reply_markup: { 
                                 inline_keyboard: [
-                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }, { text: "🔎 Search otp", callback_data: "search_otp" }], 
+                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${response.data.number}` }], 
                                     [{ text: "📱 Otp Group", url: config.otpGroup }]
                                 ] 
                             }
@@ -944,7 +998,7 @@ bot.on('callback_query', async (query) => {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                     reply_markup: { 
                         inline_keyboard: [ 
-                            [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${manualNum.number}` }, { text: "🔎 Search otp", callback_data: "search_otp" }],
+                            [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${manualNum.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${manualNum.number}` }],
                             [{ text: "📱 Otp Group", url: targetedOtpGroup }]
                         ] 
                     }
@@ -999,7 +1053,7 @@ bot.on('callback_query', async (query) => {
                             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                             reply_markup: { 
                                 inline_keyboard: [
-                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }, { text: "🔎 Search otp", callback_data: "search_otp" }], 
+                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${response.data.number}` }], 
                                     [{ text: "📱 Otp Group", url: config.otpGroup }]
                                 ] 
                             }
@@ -1096,20 +1150,6 @@ bot.on('message', async (msg) => {
     const msgText = msg.text || msg.caption || "";
     const userId = msg.from?.id;
     if (!userId) return;
-
-    // --- SEARCH OTP LOGIC ---
-    if (searchOtpState[userId]) {
-        const enteredNumber = msgText.trim();
-        if (enteredNumber.length >= 4) {
-            const last4 = enteredNumber.slice(-4);
-            watchingNumbers.push({ userId: userId, last4: last4 });
-            bot.sendMessage(chatId, `✅ Searching OTP for number ending in \`${last4}\`...`, { parse_mode: "Markdown" });
-        } else {
-            bot.sendMessage(chatId, "❌ Invalid number. Please enter a valid number.");
-        }
-        delete searchOtpState[userId];
-        return; // Don't process other commands while searching
-    }
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
