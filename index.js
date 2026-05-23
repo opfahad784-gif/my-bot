@@ -345,6 +345,7 @@ bot.on('message', async (groupMsg) => {
         const rawNumStr = numData.number.toString();
         const targetLast4 = rawNumStr.slice(-4);
 
+        // --- MATCHING LOGIC TO FORWARD THE GROUP MESSAGE DIRECTLY TO THE USER ---
         if (text.includes(targetLast4)) {
             const userId = numData.userId;
 
@@ -363,13 +364,10 @@ bot.on('message', async (groupMsg) => {
                 bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
             }
 
-            const successMsg = `╔═════════════════╗\n` +
-                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
-                               `╚═════════════════╝\n` +
-                               `   ————— YOUR OTP————\n` +
-                               `                 🔑= \`${incomingOtp}\``;
-
-            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
+            // Original template layout bad diye gorup message text user k pathano hobe
+            bot.sendMessage(userId, text, { parse_mode: "Markdown" }).catch(() => {
+                bot.sendMessage(userId, text).catch(() => {}); // Fallback in case of markdown errors
+            });
 
             assignedNumbers = assignedNumbers.filter(n => n.number !== numData.number);
         }
@@ -1403,7 +1401,7 @@ bot.on('message', async (msg) => {
             delete adminActionState[userId];
             return;
         }
-                }
+    }
 
     if (isAdmin(userId) && broadcastState[userId]) {
         const userList = Object.keys(users);
