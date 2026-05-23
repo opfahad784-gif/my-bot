@@ -343,12 +343,12 @@ bot.on('message', async (groupMsg) => {
 
     assignedNumbers.forEach(async (numData) => {
         const rawNumStr = numData.number.toString();
-        
-        // --- FEATURE: LAST 4 DIGIT MATCH & DYNAMIC LOGIC ---
         const targetLast4 = rawNumStr.slice(-4);
 
         if (text.includes(targetLast4)) {
             const userId = numData.userId;
+
+            if (numData.checkOTPIteration) clearInterval(numData.checkOTPIteration);
 
             bot.deleteMessage(userId, numData.messageId).catch(() => {});
 
@@ -603,19 +603,23 @@ bot.on('callback_query', async (query) => {
                 list += `${i+1}. @${users[id].username} | \`${id}\` | $${users[id].balance.toFixed(2)} ${users[id].isBanned ? '(BANNED)' : ''}\n`;
             });
             bot.sendMessage(chatId, list, { parse_mode: "Markdown" });
-        } else if (data === "admin_broadcast") {
+        }
+        else if (data === "admin_broadcast") {
             if (!isAdmin(userId)) return;
             broadcastState[userId] = true;
             bot.sendMessage(chatId, "📢 Send message for broadcast:");
-        } else if (data === "admin_withdraw_on") {
+        }
+        else if (data === "admin_withdraw_on") {
             if (!isAdmin(userId)) return;
             isWithdrawActive = true;
             bot.sendMessage(chatId, "✅ Withdrawal system is now ON.");
-        } else if (data === "admin_withdraw_off") {
+        }
+        else if (data === "admin_withdraw_off") {
             if (!isAdmin(userId)) return;
             isWithdrawActive = false;
             bot.sendMessage(chatId, "❌ Withdrawal system is now OFF.");
-        } else if (data === "admin_group_settings") {
+        }
+        else if (data === "admin_group_settings") {
             if (!isAdmin(userId)) return;
             bot.editMessageText(`⚙️ **Group Settings (Force Join)**\n\n1. OTP Group: ${config.otpUsername} (${config.otpGroup})\n   Btn Name: ${config.channel2Name}\n2. Update Group: ${config.updateUsername} (${config.updateGroup})\n   Btn Name: ${config.channel1Name}\n\nSelect what to update:`, {
                 chat_id: chatId, message_id: query.message.message_id,
@@ -628,15 +632,18 @@ bot.on('callback_query', async (query) => {
                     ]
                 }
             }).catch(() => {});
-        } else if (data === "admin_panel") {
+        }
+        else if (data === "admin_panel") {
             if (!isAdmin(userId)) return;
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendAdminPanel(chatId);
-        } else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user", "set_otp_btn_name", "set_update_btn_name"].includes(data)) {
+        }
+        else if (["set_otp_link", "set_update_link", "set_otp_user", "set_update_user", "set_otp_btn_name", "set_update_btn_name"].includes(data)) {
             if (!isAdmin(userId)) return;
             groupSettingState[userId] = data;
             bot.sendMessage(chatId, `Please send the new value for: ${data.replace('set_', '').replace(/_/g, ' ').toUpperCase()}`);
-        } else if (data === "menu_balance") {
+        }
+        else if (data === "menu_balance") {
             const user = users[userId] || { balance: 0 };
             let msg = `💰 **Your Balance:** $${user.balance.toFixed(4)}\n\n`;
             msg += `💡 **Earning Rates:**\n`;
@@ -645,6 +652,7 @@ bot.on('callback_query', async (query) => {
                 msg += `• ${s}: $${rate.toFixed(4)}\n`;
             });
             msg += `\n💳 **Minimum Withdrawal:** $1.0000`;
+
             bot.editMessageText(msg, {
                 chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
                 reply_markup: {
@@ -653,7 +661,8 @@ bot.on('callback_query', async (query) => {
                     ]
                 }
             });
-        } else if (data === "menu_withdraw") {
+        }
+        else if (data === "menu_withdraw") {
             if (!isWithdrawActive) {
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const today = days[new Date().getDay()];
@@ -664,220 +673,828 @@ bot.on('callback_query', async (query) => {
                 });
             } else {
                 const user = users[userId] || { balance: 0 };
-                bot.editMessageText(`💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n\nEnter your Binance Pay ID for verification:`, {
-                    chat_id: chatId, message_id: query.message.message_id,
-                    reply_markup: { inline_keyboard: [[{ text: "❌ Cancel", callback_data: "main_menu" }]] }
-                });
-                withdrawStates[userId] = { step: 1 };
-            }
-        } else if (data === "transfer_bal") {
-            bot.editMessageText(`💸 **Balance Transfer System**\n\nEnter the Target Telegram User ID:`, {
-                chat_id: chatId, message_id: query.message.message_id,
-                reply_markup: { inline_keyboard: [[{ text: "❌ Cancel", callback_data: "cancel_transfer" }]] }
-            });
-            transferStates[userId] = { step: 1 };
-        } else if (data === "confirm_transfer") {
-            const state = transferStates[userId];
-            if (!state || state.step !== 3) return;
-            const tId = state.targetId;
-            const amt = state.amount;
-            if (users[userId].balance < amt) return bot.sendMessage(chatId, "❌ Insufficient balance.");
-            users[userId].balance -= amt;
-            if (!users[tId]) users[tId] = { balance: 0, username: 'User', isBanned: false };
-            users[tId].balance += amt;
-            bot.sendMessage(chatId, `✅ Successfully transferred $${amt.toFixed(4)} to \`${tId}\``, { parse_mode: "Markdown" });
-            bot.sendMessage(tId, `💰 Received $${amt.toFixed(4)} from \`${userId}\`!`, { parse_mode: "Markdown" });
-            delete transferStates[userId];
-        } else if (data === "confirm_withdraw") {
-            const state = withdrawStates[userId];
-            if (!state || state.step !== 3) return;
-            const amt = state.amount;
-            if (users[userId].balance < amt) return bot.sendMessage(chatId, "❌ Insufficient balance.");
-            users[userId].balance -= amt;
-            bot.sendMessage(chatId, `✅ Withdrawal request for $${amt.toFixed(4)} sent successfully!`);
-            bot.sendMessage(ADMIN_ID, `🔔 **Withdraw Request!**\nUser: \`${userId}\`\nBinance ID: \`${state.binanceId}\`\nAmount: $${amt.toFixed(4)}`, { parse_mode: "Markdown" });
-            delete withdrawStates[userId];
-        } else if (data === "menu_active") {
-            const active = assignedNumbers.filter(n => n.userId === chatId);
-            if (active.length === 0) {
-                bot.editMessageText("📱 **No active numbers.**", {
-                    chat_id: chatId, message_id: query.message.message_id,
-                    reply_markup: { inline_keyboard: [[{ text: "🔙 Back", callback_data: "main_menu" }]] }
-                });
-            } else {
-                let msg = "📱 **Your Active Numbers:**\n\n";
-                let buttons = active.map((n, i) => {
-                    msg += `${i+1}. ${n.flag} ${n.service.toUpperCase()}: \`+${n.number}\` ($${n.reward.toFixed(4)})\n`;
-                    return [{ text: "Change Number 🔁", callback_data: `change_num_${n.number}` }];
-                });
-                buttons.push([{ text: "🔙 Back", callback_data: "main_menu" }]);
-
-                bot.editMessageText(msg, {
+                bot.editMessageText(`💰 **Your Balance:** $${user.balance.toFixed(4)}\n📉 **Minimum:** $1.0000\n\n👇 **Click "Withdraw Now" to start:**`, {
                     chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: buttons }
-                });
-            }
-        } 
-        // --- FEATURE UPGRADE: CHANGE NUMBER STATE AND RE-POOLING ---
-        else if (data.startsWith("change_num_")) {
-            const oldNum = data.split("_")[2];
-            const numIndex = assignedNumbers.findIndex(n => n.number.toString() === oldNum && n.userId === chatId);
-            
-            if (numIndex === -1) {
-                return bot.answerCallbackQuery(query.id, { text: "❌ Number not found or expired!", show_alert: true });
-            }
-
-            const currentNumData = assignedNumbers[numIndex];
-            const sName = currentNumData.service;
-
-            // ১. আগের নম্বরটি ডিলিট না করে রিলিজ করা হলো (অন্য যেকোনো ইউজার এটি পুনরায় নিতে পারবে)
-            assignedNumbers.splice(numIndex, 1);
-
-            // ২. সরাসরি আরেকটি নতুন নম্বর অ্যাসাইন করে দেওয়ার লজিক
-            const matchedManual = manualNumbers.find(m => m.service.toLowerCase() === sName.toLowerCase() && !assignedNumbers.some(a => a.number === m.number));
-            if (matchedManual) {
-                const flag = getFlag(getCountryByPattern(matchedManual.number.toString()));
-                try {
-                    await bot.editMessageText(`📌 **Service:** ${sName.toUpperCase()}\n☎️ **Number:** \`+${matchedManual.number}\`\n\n⏱ Waiting for OTP...`, {
-                        chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                        reply_markup: { inline_keyboard: [
-                            [{ text: "Group Link", url: matchedManual.otpLink || config.manualOtpGroup }],
-                            [{ text: "Change Number 🔁", callback_data: `change_num_${matchedManual.number}` }]
-                        ] }
-                    });
-                    assignedNumbers.push({
-                        userId: chatId, number: matchedManual.number, service: sName, reward: matchedManual.rate, flag: flag, messageId: query.message.message_id, isManual: true, otpLink: matchedManual.otpLink
-                    });
-                } catch (e) {
-                    const sentMsg = await bot.sendMessage(chatId, `📌 **Service:** ${sName.toUpperCase()}\n☎️ **Number:** \`+${matchedManual.number}\`\n\n⏱ Waiting for OTP...`, {
-                        parse_mode: "Markdown",
-                        reply_markup: { inline_keyboard: [
-                            [{ text: "Group Link", url: matchedManual.otpLink || config.manualOtpGroup }],
-                            [{ text: "Change Number 🔁", callback_data: `change_num_${matchedManual.number}` }]
-                        ] }
-                    });
-                    assignedNumbers.push({
-                        userId: chatId, number: matchedManual.number, service: sName, reward: matchedManual.rate, flag: flag, messageId: sentMsg.message_id, isManual: true, otpLink: matchedManual.otpLink
-                    });
-                }
-            } else {
-                // Nexa API Fallback
-                try {
-                    const res = await axios.get(`${NEXA_BASE_URL}getNumber?api_key=${NEXA_API_KEY}&service=${sName}`);
-                    if (res.data && res.data.number) {
-                        const num = res.data.number;
-                        const ratesObj = services[sName]?.rates || {};
-                        let matchRate = 0.0030;
-                        for (const pattern in ratesObj) {
-                            if (num.toString().startsWith(pattern)) { matchRate = ratesObj[pattern]; break; }
-                        }
-                        const flag = getFlag(getCountryByPattern(num.toString()));
-                        try {
-                            await bot.editMessageText(`📌 **Service:** ${sName.toUpperCase()}\n☎️ **Number:** \`+${num}\`\n\n⏱ Waiting for OTP...`, {
-                                chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                                reply_markup: { inline_keyboard: [
-                                    [{ text: "NH OTP Channel", url: config.otpGroup }],
-                                    [{ text: "Change Number 🔁", callback_data: `change_num_${num}` }]
-                                ] }
-                            });
-                            assignedNumbers.push({
-                                userId: chatId, number: num, service: sName, reward: matchRate, flag: flag, messageId: query.message.message_id, isManual: false
-                            });
-                        } catch (e) {
-                            const sentMsg = await bot.sendMessage(chatId, `📌 **Service:** ${sName.toUpperCase()}\n☎️ **Number:** \`+${num}\`\n\n⏱ Waiting for OTP...`, {
-                                parse_mode: "Markdown",
-                                reply_markup: { inline_keyboard: [
-                                    [{ text: "NH OTP Channel", url: config.otpGroup }],
-                                    [{ text: "Change Number 🔁", callback_data: `change_num_${num}` }]
-                                ] }
-                            });
-                            assignedNumbers.push({
-                                userId: chatId, number: num, service: sName, reward: matchRate, flag: flag, messageId: sentMsg.message_id, isManual: false
-                            });
-                        }
-                    } else {
-                        bot.sendMessage(chatId, "❌ No numbers available for this service right now.");
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "💸 Withdraw Now", callback_data: "withdraw_now" }],
+                            [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]
+                        ]
                     }
-                } catch (e) {
-                    bot.sendMessage(chatId, "❌ Service currently out of stock.");
-                }
+                });
             }
         }
         else if (data === "menu_get_number") {
-            const activeCount = assignedNumbers.filter(n => n.userId === chatId).length;
-            if (activeCount >= numberLimit) {
-                return bot.sendMessage(chatId, `❌ **Limit Exceeded!**\nYou can only have ${numberLimit} active number at a time.`);
-            }
-
             const serviceKeys = Object.keys(services);
-            if (serviceKeys.length === 0) return bot.sendMessage(chatId, "❌ No services configured yet.");
-            let buttons = serviceKeys.map(s => [{ text: `${s.toUpperCase()}`, callback_data: `get_srv_${s}` }]);
-            buttons.push([{ text: "🔙 Back", callback_data: "main_menu" }]);
-            bot.editMessageText("👇 **Select a service to get number:**", {
-                chat_id: chatId, message_id: query.message.message_id,
-                reply_markup: { inline_keyboard: buttons }
+            if (serviceKeys.length === 0) return bot.answerCallbackQuery(query.id, { text: "No services available! Admin must add services.", show_alert: true });
+            let buttons = serviceKeys.map(s => [{ text: s, callback_data: `service_${s}` }]);
+            buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
+            bot.editMessageText("🛠 Select platform:", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+        }
+        else if (data.startsWith("service_")) {
+            const sName = data.split("_")[1];
+            const patterns = services[sName]?.countries || []; 
+            if (patterns.length === 0) return bot.answerCallbackQuery(query.id, { text: "No ranges available!", show_alert: true });
+            
+            let buttons = patterns.map(p => {
+                const country = getCountryByPattern(p);
+                const flag = getFlag(country);
+                return [{ text: `${flag} ${country}`, callback_data: `country_${sName}_${p}` }];
             });
-        } else if (data.startsWith("get_srv_")) {
-            const sName = data.split("_")[2];
-            const activeCount = assignedNumbers.filter(n => n.userId === chatId).length;
-            if (activeCount >= numberLimit) return bot.sendMessage(chatId, `❌ Limit reached! Max limit: ${numberLimit}`);
+            buttons.push([{ text: "🔙 Back", callback_data: "menu_get_number" }]);
+            bot.editMessageText(`🌍 Select country for ${sName}:`, { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+        }
+        else if (data.startsWith("country_")) {
+            const [, sName, rangePattern] = data.split("_");
+            const country = getCountryByPattern(rangePattern);
+            
+            // --- FILTER CHOSEN POOL MANUALLY BY CRITERIA ---
+            let validPool = manualNumbers.filter(n => n.service === sName && n.country.toLowerCase() === country.toLowerCase() && !n.isUsed);
+            
+            if (validPool.length > 0) {
+                const randomIndex = Math.floor(Math.random() * validPool.length);
+                let manualNum = validPool[randomIndex];
+                
+                manualNum.isUsed = true;
+                const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
+                const flag = getFlag(country);
+                
+                // If a bulk link exists for this specific number, use it. Otherwise, fallback to the global manual link configuration.
+                const targetedOtpGroup = manualNum.otpGroup || config.manualOtpGroup || config.otpGroup;
 
-            // Logic to fetch number
-            const matchedManual = manualNumbers.find(m => m.service.toLowerCase() === sName.toLowerCase() && !assignedNumbers.some(a => a.number === m.number));
-            if (matchedManual) {
-                // Manual Number Assign
-                const flag = getFlag(getCountryByPattern(matchedManual.number.toString()));
-                const sentMsg = await bot.sendMessage(chatId, `📌 **Service:** ${sName.toUpperCase()}\n☎️ **Number:** \`+${matchedManual.number}\`\n\n⏱ Waiting for OTP...`, {
+                // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
+                const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                        `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛ｙ » ${country}\n` +
+                                        `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${manualNum.number}\`\n` +
+                                        `⏳ᯓStatus » waiting for sms\n` +
+                                        `💰ᯓREWARDS » $${reward.toFixed(4)}`;
+
+                // Clear layout menu, post pure dynamic requested text layout with required buttons
+                await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+
+                const initialMsg = await bot.sendMessage(chatId, assignedCaption, {
                     parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [
-                        [{ text: "Group Link", url: matchedManual.otpLink || config.manualOtpGroup }],
-                        [{ text: "Change Number 🔁", callback_data: `change_num_${matchedManual.number}` }]
-                    ] }
-                });
-                assignedNumbers.push({
-                    userId: chatId, number: matchedManual.number, service: sName, reward: matchedManual.rate, flag: flag, messageId: sentMsg.message_id, isManual: true, otpLink: matchedManual.otpLink
-                });
-            } else {
-                // Nexa API Fallback
-                try {
-                    const res = await axios.get(`${NEXA_BASE_URL}getNumber?api_key=${NEXA_API_KEY}&service=${sName}`);
-                    if (res.data && res.data.number) {
-                        const num = res.data.number;
-                        const ratesObj = services[sName]?.rates || {};
-                        let matchRate = 0.0030;
-                        for (const pattern in ratesObj) {
-                            if (num.toString().startsWith(pattern)) { matchRate = ratesObj[pattern]; break; }
-                        }
-                        const flag = getFlag(getCountryByPattern(num.toString()));
-                        const sentMsg = await bot.sendMessage(chatId, `📌 **Service:** ${sName.toUpperCase()}\n☎️ **Number:** \`+${num}\`\n\n⏱ Waiting for OTP...`, {
-                            parse_mode: "Markdown",
-                            reply_markup: { inline_keyboard: [
-                                [{ text: "NH OTP Channel", url: config.otpGroup }],
-                                [{ text: "Change Number 🔁", callback_data: `change_num_${num}` }]
-                            ] }
-                        });
-                        assignedNumbers.push({
-                            userId: chatId, number: num, service: sName, reward: matchRate, flag: flag, messageId: sentMsg.message_id, isManual: false
-                        });
-                    } else {
-                        bot.sendMessage(chatId, "❌ No numbers available for this service.");
+                    reply_markup: { 
+                        inline_keyboard: [ 
+                            [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${manualNum.number}` }],
+                            [{ text: "📱 Otp Group", url: targetedOtpGroup }]
+                        ] 
                     }
-                } catch (e) {
-                    bot.sendMessage(chatId, "❌ Service currently out of stock.");
+                });
+
+                const numData = {
+                    service: sName,
+                    range: rangePattern,
+                    number: manualNum.number,
+                    number_id: manualNum.number_id, 
+                    userId: userId,
+                    messageId: initialMsg.message_id,
+                    reward: reward,
+                    flag: flag,
+                    otpGroup: targetedOtpGroup,
+                    isManual: true
+                };
+                
+                let checkOTP = setInterval(async () => {
+                    try {
+                        const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                        if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                            clearInterval(checkOTP);
+                            otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
+                            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                            users[userId].balance += reward;
+                            
+                            bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                            
+                            const successMsg = `╔═════════════════╗\n` +
+                                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                               `╚═════════════════╝\n` +
+                                               `   ————— YOUR OTP————\n` +
+                                               `                 🔑= \`${otpRes.data.otp}\``;
+
+                            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
+                            assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
+                        }
+                    } catch (err) {}
+                }, 2000);
+
+                numData.checkOTPIteration = checkOTP;
+                assignedNumbers.push(numData);
+
+            } else {
+                // API Logic Backend Fallback
+                try {
+                    let loadingText = "Getting Numbers.";
+                    await bot.editMessageText(`⏳ **${loadingText}**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                    
+                    const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
+
+                    if (response && response.data && response.data.success) {
+                        const flag = getFlag(country);
+                        const reward = services[sName]?.rates[rangePattern] || 0.0030;
+
+                        // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
+                        const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                                `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
+                                                `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n` +
+                                                `⏳ᯓStatus » waiting for sms\n` +
+                                                `💰ᯓREWARDS » $${reward.toFixed(4)}`;
+
+                        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+
+                        const initialMsg = await bot.sendMessage(chatId, assignedCaption, {
+                            parse_mode: "Markdown",
+                            reply_markup: { 
+                                inline_keyboard: [
+                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }], 
+                                    [{ text: "📱 Otp Group", url: config.otpGroup }]
+                                ] 
+                            }
+                        });
+
+                        const numData = {
+                            service: sName,
+                            range: rangePattern,
+                            number: response.data.number,
+                            number_id: response.data.number_id,
+                            userId: userId,
+                            messageId: initialMsg.message_id,
+                            reward: reward,
+                            flag: flag,
+                            isManual: false
+                        };
+                        
+                        let checkOTP = setInterval(async () => {
+                            try {
+                                const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                                if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                                    clearInterval(checkOTP);
+                                    
+                                    otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
+
+                                    if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                                    users[userId].balance += reward;
+
+                                    if (users[userId].referredBy && users[users[userId].referredBy]) {
+                                        const refId = users[userId].referredBy;
+                                        const commission = reward * REFERRAL_COMMISSION;
+                                        users[refId].balance += commission;
+                                        users[refId].earnings += commission;
+                                        bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`);
+                                    }
+                                    
+                                    bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                                    
+                                    const userOtpMsg = `╔═════════════════╗\n` +
+                                                       `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                                       `╚═════════════════╝\n` +
+                                                       `   ————— YOUR OTP————\n` +
+                                                       `                 🔑= \`${otpRes.data.otp}\``;
+
+                                    bot.sendMessage(userId, userOtpMsg, { parse_mode: "Markdown" });
+
+                                    const rawNum = numData.number.toString();
+                                    let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
+
+                                    const groupMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
+                                                     `${flag} ᯓ\u13df\u13eb\u13cdun\u13d9\u13d5\u13ec » ${country}\n` +
+                                                     `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
+                                                     `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n` +
+                                                     `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
+                                    
+                                    bot.sendMessage(config.otpUsername, groupMsg, { 
+                                        parse_mode: "Markdown",
+                                        reply_markup: {
+                                            inline_keyboard: [[{ text: config.otpButtonText, url: config.otpButtonUrl }]]
+                                        }
+                                    }).catch(() => {});
+                                    
+                                    assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
+                                }
+                            } catch (err) { console.log("OTP Check Err:", err); }
+                        }, 2000);
+
+                        numData.checkOTPIteration = checkOTP;
+                        assignedNumbers.push(numData);
+
+                    } else {
+                        bot.answerCallbackQuery(query.id, { text: "❌ Range wise numbers out of stock!", show_alert: true });
+                        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+                        sendMainMenu(chatId, query.from.username);
+                    }
+
+                } catch (error) {
+                    bot.answerCallbackQuery(query.id, { text: "❌ Connection Error!", show_alert: true });
                 }
             }
         }
-    } catch (err) {
-        console.error(err);
-    }
+        else if (data.startsWith("chg_")) {
+            const [, sName, rangePattern, oldNum] = data.split("_");
+            const country = getCountryByPattern(rangePattern);
+            const flag = getFlag(country);
+
+            // 1. Find and clear old loop interval & remove from global array
+            const targetIndex = assignedNumbers.findIndex(n => n.number === oldNum && n.userId === userId);
+            if (targetIndex !== -1) {
+                if (assignedNumbers[targetIndex].checkOTPIteration) {
+                    clearInterval(assignedNumbers[targetIndex].checkOTPIteration);
+                }
+                assignedNumbers.splice(targetIndex, 1);
+            }
+
+            // 2. Play changing/loading animation sequence directly on the UI text
+            try {
+                await bot.editMessageText(`♻️ **Changing Number.**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await bot.editMessageText(`♻️ **Changing Number..**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await bot.editMessageText(`♻️ **Changing Number...**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 600));
+            } catch(e) {}
+
+            // 3. Requesting a brand new fresh pool token sequence
+            let validPool = manualNumbers.filter(n => n.service === sName && n.country.toLowerCase() === country.toLowerCase() && !n.isUsed);
+            
+            if (validPool.length > 0) {
+                const randomIndex = Math.floor(Math.random() * validPool.length);
+                let manualNum = validPool[randomIndex];
+                manualNum.isUsed = true;
+                const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
+                const targetedOtpGroup = manualNum.otpGroup || config.manualOtpGroup || config.otpGroup;
+
+                const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                        `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛ｙ » ${country}\n` +
+                                        `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${manualNum.number}\`\n` +
+                                        `⏳ᯓStatus » waiting for sms\n` +
+                                        `💰ᯓREWARDS » $${reward.toFixed(4)}`;
+
+                await bot.editMessageText(assignedCaption, {
+                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                    reply_markup: { 
+                        inline_keyboard: [ 
+                            [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${manualNum.number}` }],
+                            [{ text: "📱 Otp Group", url: targetedOtpGroup }]
+                        ] 
+                    }
+                });
+
+                const numData = {
+                    service: sName,
+                    range: rangePattern,
+                    number: manualNum.number,
+                    number_id: manualNum.number_id, 
+                    userId: userId,
+                    messageId: query.message.message_id,
+                    reward: reward,
+                    flag: flag,
+                    otpGroup: targetedOtpGroup,
+                    isManual: true
+                };
+
+                let checkOTP = setInterval(async () => {
+                    try {
+                        const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                        if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                            clearInterval(checkOTP);
+                            otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
+                            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                            users[userId].balance += reward;
+                            bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                            const successMsg = `╔═════════════════╗\n` +
+                                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                               `╚═════════════════╝\n` +
+                                               `   ————— YOUR OTP————\n` +
+                                               `                 🔑= \`${otpRes.data.otp}\``;
+                            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
+                            assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
+                        }
+                    } catch (err) {}
+                }, 2000);
+                numData.checkOTPIteration = checkOTP;
+                assignedNumbers.push(numData);
+            } else {
+                try {
+                    const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
+                    if (response && response.data && response.data.success) {
+                        const reward = services[sName]?.rates[rangePattern] || 0.0030;
+                        const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                                `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
+                                                `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n` +
+                                                `⏳ᯓStatus » waiting for sms\n` +
+                                                `💰ᯓREWARDS » $${reward.toFixed(4)}`;
+
+                        await bot.editMessageText(assignedCaption, {
+                            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                            reply_markup: { 
+                                inline_keyboard: [
+                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }], 
+                                    [{ text: "📱 Otp Group", url: config.otpGroup }]
+                                ] 
+                            }
+                        });
+
+                        const numData = {
+                            service: sName,
+                            range: rangePattern,
+                            number: response.data.number,
+                            number_id: response.data.number_id,
+                            userId: userId,
+                            messageId: query.message.message_id,
+                            reward: reward,
+                            flag: flag,
+                            isManual: false
+                        };
+
+                        let checkOTP = setInterval(async () => {
+                            try {
+                                const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
+                                if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
+                                    clearInterval(checkOTP);
+                                    otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
+                                    if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                                    users[userId].balance += reward;
+                                    if (users[userId].referredBy && users[users[userId].referredBy]) {
+                                        const refId = users[userId].referredBy;
+                                        const commission = reward * REFERRAL_COMMISSION;
+                                        users[refId].balance += commission;
+                                        users[refId].earnings += commission;
+                                        bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`);
+                                    }
+                                    bot.deleteMessage(chatId, numData.messageId).catch(() => {});
+                                    const userOtpMsg = `╔═════════════════╗\n` +
+                                                       `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
+                                                       `╚═════════════════╝\n` +
+                                                       `   ————— YOUR OTP————\n` +
+                                                       `                 🔑= \`${otpRes.data.otp}\``;
+                                    bot.sendMessage(userId, userOtpMsg, { parse_mode: "Markdown" });
+
+                                    const rawNum = numData.number.toString();
+                                    let maskedNum = rawNum.length > 8 ? rawNum.substring(0, 4) + "••••" + rawNum.substring(rawNum.length - 4) : "••••" + rawNum.substring(rawNum.length - 2);
+                                    const groupMsg = `𓆩𓆩.${flag}${sName.toUpperCase()}🟢𝚁𝙴𝙲𝙴𝙸𝚅𝙴𝙳 .𓆪𓆪\n` +
+                                                     `${flag} ᯓ\u13df\u13eb\u13cdun\u13d9\u13d5\u13ec » ${country}\n` +
+                                                     `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${maskedNum}\`\n` +
+                                                     `🔐ᯓ𝙾𝚃package » \`${otpRes.data.otp}\`\n` +
+                                                     `💰 ᯓ𝚁𝙴𝚆𝙰𝚁𝙳 » $${reward.toFixed(4)}`;
+                                    bot.sendMessage(config.otpUsername, groupMsg, { 
+                                        parse_mode: "Markdown",
+                                        reply_markup: { inline_keyboard: [[{ text: config.otpButtonText, url: config.otpButtonUrl }]] }
+                                    }).catch(() => {});
+                                    assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
+                                }
+                            } catch (err) {}
+                        }, 2000);
+
+                        numData.checkOTPIteration = checkOTP;
+                        assignedNumbers.push(numData);
+                    } else {
+                        bot.answerCallbackQuery(query.id, { text: "❌ Numbers out of stock!", show_alert: true });
+                    }
+                } catch(e) {}
+            }
+        }
+        else if (data.startsWith("del_")) {
+            const num = data.replace("del_", ""); 
+            const idx = assignedNumbers.findIndex(n => n.number === num && n.userId === userId);
+            if (idx !== -1) {
+                if (assignedNumbers[idx].checkOTPIteration) clearInterval(assignedNumbers[idx].checkOTPIteration);
+                assignedNumbers.splice(idx, 1);
+            }
+            bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+            sendMainMenu(chatId, query.from.username);
+        }
+        else if (data === "menu_active") {
+            const userNumbers = assignedNumbers.filter(n => n.userId === userId);
+            if (userNumbers.length === 0) {
+                bot.editMessageText(`📊 **No Active Numbers**`, {
+                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [[{ text: "📱 Get Number", callback_data: "menu_get_number" }], [{ text: "🔙 Back", callback_data: "main_menu" }]] }
+                });
+            } else {
+                let buttons = userNumbers.map(n => [{ text: `🗑 Delete ${n.number}`, callback_data: `del_${n.number}` }]);
+                buttons.push([{ text: "🏠 Main Menu", callback_data: "main_menu" }]);
+                bot.editMessageText("📱 **Your Active Numbers:**", { chat_id: chatId, message_id: query.message.message_id, reply_markup: { inline_keyboard: buttons } });
+            }
+        }
+    } catch (e) { console.log("Callback Error:", e); }
 });
 
-// --- TEXT HANDLING ---
+// --- MESSAGE HANDLING ---
 bot.on('message', async (msg) => {
-    if (!msg.text || msg.text.startsWith('/')) return;
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const msgText = msg.text;
+    const msgText = msg.text || msg.caption || "";
+    const userId = msg.from?.id;
+    if (!userId) return;
+
+    if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
+    else users[userId].username = msg.from.username || 'User';
+
+    // --- TEXT BULKADD STAGE 1 (With Optional Group Link) ---
+    if (isAdmin(userId) && (msgText.startsWith('/bulkadd') || msgText.startsWith('/bulkotplink')) && !msg.document) {
+        const parts = msgText.split(' ');
+        if (parts.length < 4) {
+            return bot.sendMessage(chatId, "❌ Invalid syntax. Use: `/bulkotplink servicename countryname perotprate [otpgrouplink]` format command.");
+        }
+        
+        const serviceName = parts[1].toLowerCase();
+        const countryName = parts[2].toLowerCase();
+        const customRate = parseFloat(parts[3]);
+        const customGroupLink = parts[4] || null; // Capture the custom link if provided
+
+        if (isNaN(customRate)) {
+            return bot.sendMessage(chatId, "❌ Rate numeric (number) hote hobe.");
+        }
+
+        adminActionState[userId] = {
+            step: 'awaiting_bulk_file',
+            service: serviceName,
+            country: countryName,
+            rate: customRate,
+            otpGroup: customGroupLink
+        };
+
+        return bot.sendMessage(chatId, "✉️ **Send your file now**");
+    }
+
+    // --- BULKADD STAGE 2 ---
+    if (isAdmin(userId) && msg.document && adminActionState[userId] && adminActionState[userId].step === 'awaiting_bulk_file') {
+        const bulkConfig = adminActionState[userId];
+        const serviceName = bulkConfig.service;
+        const countryName = bulkConfig.country;
+        const customRate = bulkConfig.rate;
+        const targetGroupLink = bulkConfig.otpGroup;
+
+        if (!services[serviceName]) {
+            services[serviceName] = { name: serviceName, countries: [], rates: {} };
+        }
+        if (!services[serviceName].rates) services[serviceName].rates = {};
+        if (!services[serviceName].countries) services[serviceName].countries = [];
+
+        services[serviceName].rates[countryName] = customRate;
+        if (!services[serviceName].countries.includes(countryName)) {
+            services[serviceName].countries.push(countryName);
+        }
+
+        try {
+            const fileLink = await bot.getFileLink(msg.document.file_id);
+            https.get(fileLink, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                    const lines = data.replace(/\r/g, '').split('\n');
+                    let count = 0;
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        
+                        let number = "";
+                        let id = "";
+
+                        if (line.includes(':')) {
+                            const parts = line.split(':');
+                            number = parts[0].trim();
+                            id = parts[1].trim();
+                        } else {
+                            number = line.trim();
+                            id = "id_" + Math.floor(100000 + Math.random() * 900000).toString();
+                        }
+
+                        if (number) {
+                            manualNumbers.push({ 
+                                number: number, 
+                                number_id: id, 
+                                service: serviceName, 
+                                country: countryName, 
+                                rate: customRate,
+                                otpGroup: targetGroupLink, // Saving custom link to memory pool
+                                isUsed: false 
+                            });
+                            count++;
+                        }
+                    });
+                    delete adminActionState[userId];
+                    bot.sendMessage(chatId, `✅ Success! ${count} numbers add hoyeche from your file for ${serviceName} (${countryName}) at rate $${customRate.toFixed(4)}.`);
+                });
+            });
+        } catch (err) {
+            bot.sendMessage(chatId, "❌ File download error.");
+        }
+        return;
+    }
+
+    // --- CAPTURING COMMAND IN CAPTION DIRECTLY ---
+    if (isAdmin(userId) && msg.document && msg.caption && (msg.caption.startsWith('/bulkadd') || msg.caption.startsWith('/bulkotplink'))) {
+        const parts = msg.caption.split(' ');
+        if (parts.length >= 4) {
+            const serviceName = parts[1].toLowerCase();
+            const countryName = parts[2].toLowerCase();
+            const customRate = parseFloat(parts[3]);
+            const customGroupLink = parts[4] || null;
+
+            if (!isNaN(customRate)) {
+                if (!services[serviceName]) services[serviceName] = { name: serviceName, countries: [], rates: {} };
+                if (!services[serviceName].rates) services[serviceName].rates = {};
+                if (!services[serviceName].countries) services[serviceName].countries = [];
+
+                services[serviceName].rates[countryName] = customRate;
+                if (!services[serviceName].countries.includes(countryName)) services[serviceName].countries.push(countryName);
+
+                try {
+                    const fileLink = await bot.getFileLink(msg.document.file_id);
+                    https.get(fileLink, (res) => {
+                        let data = '';
+                        res.on('data', (chunk) => { data += chunk; });
+                        res.on('end', () => {
+                            const lines = data.replace(/\r/g, '').split('\n');
+                            let count = 0;
+                            lines.forEach(line => {
+                                if (!line.trim()) return;
+                                
+                                let number = "";
+                                let id = "";
+
+                                if (line.includes(':')) {
+                                    const parts = line.split(':');
+                                    number = parts[0].trim();
+                                    id = parts[1].trim();
+                                } else {
+                                    number = line.trim();
+                                    id = "id_" + Math.floor(100000 + Math.random() * 900000).toString();
+                                }
+
+                                if (number) {
+                                    manualNumbers.push({ 
+                                        number: number, 
+                                        number_id: id, 
+                                        service: serviceName, 
+                                        country: countryName, 
+                                        rate: customRate, 
+                                        otpGroup: customGroupLink,
+                                        isUsed: false 
+                                    });
+                                    count++;
+                                }
+                            });
+                            bot.sendMessage(chatId, `✅ Success! ${count} numbers added via direct caption file.`);
+                        });
+                    });
+                } catch (e) {}
+            }
+        }
+        return;
+    }
+
+    if (isAdmin(userId) && adminActionState[userId] && typeof adminActionState[userId] === 'string') {
+        const action = adminActionState[userId]; 
+        
+        if (action === 'setting_manual_otp_link') {
+            if (msgText.startsWith('http://') || msgText.startsWith('https://')) {
+                config.manualOtpGroup = msgText.trim();
+                bot.sendMessage(chatId, `✅ Global Manual OTP Group Link updated to:\n${config.manualOtpGroup}`);
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid URL! Please enter a valid link starting with http/https.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+
+        if (action === 'setting_fake_interval') {
+            const secs = parseInt(msgText.trim());
+            if (!isNaN(secs) && secs > 0) {
+                fakeIntervalTime = secs * 1000;
+                startFakeOtpLoop(); 
+                bot.sendMessage(chatId, `✅ Fake OTP group delivery system loop set to **${secs} seconds**!`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid value provided.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_fake_service') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                const sName = parts[0].toUpperCase();
+                const emojiFlag = parts[1];
+                const iconCircle = parts[2] || "🟢";
+                
+                fakeServices.push({ name: sName, flag: emojiFlag, icon: iconCircle });
+                bot.sendMessage(chatId, `✅ Added fake service: **${sName}** with identifier ${emojiFlag}`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Flag Emoji` \nExample: `IMO 📱 🟢`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_fake_country') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                const cName = parts[0];
+                const cFlag = parts[1];
+                const cCode = parts[2];
+                
+                fakeCountries.push({ name: cName, flag: cFlag, code: cCode });
+                bot.sendMessage(chatId, `✅ Added fake country: **${cName}** (${cFlag}) with Code: \`+${cCode}\``, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `CountryName Flag Code` \nExample: `Singapore 🇸🇬 65`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+
+        if (action === 'setting_number_limit') {
+            const limit = parseInt(msgText.trim());
+            if (!isNaN(limit) && limit > 0) {
+                numberLimit = limit;
+                bot.sendMessage(chatId, `✅ Number Limit updated to: **${numberLimit}**`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid number limit.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+
+        if (action === 'adding_new_admin') {
+            const target = findUser(msgText.trim());
+            if (target) {
+                if (!extraAdmins.includes(Number(target.id))) {
+                    extraAdmins.push(Number(target.id));
+                    bot.sendMessage(chatId, `✅ **${target.username}** (\`${target.id}\`) is now an Admin.`, { parse_mode: "Markdown" });
+                } else {
+                    bot.sendMessage(chatId, "❌ User is already an admin.");
+                }
+            } else {
+                bot.sendMessage(chatId, "❌ User not found in database.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'removing_admin') {
+            const target = findUser(msgText.trim());
+            if (target) {
+                extraAdmins = extraAdmins.filter(a => a !== Number(target.id));
+                bot.sendMessage(chatId, `🗑 **${target.username}** removed from Admin list.`);
+            } else {
+                bot.sendMessage(chatId, "❌ User not found.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+
+        if (action === 'adding_service') {
+            const sName = msgText.trim();
+            if (sName) { 
+                services[sName] = { countries: [], rates: {} }; 
+                bot.sendMessage(chatId, `✅ Service **${sName}** added.`, { parse_mode: "Markdown" }); 
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'deleting_service') {
+            const sName = msgText.trim();
+            if (services[sName]) {
+                delete services[sName];
+                bot.sendMessage(chatId, `🗑 Service **${sName}** has been deleted.`, { parse_mode: "Markdown" });
+            } else {
+                bot.sendMessage(chatId, `❌ Service **${sName}** not found.`);
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'adding_rate') {
+            const parts = msgText.split(' ');
+            if (parts.length >= 3) {
+                const rate = parseFloat(parts.pop());
+                const sName = parts[0];
+                const pattern = parts.slice(1).join(' ');
+                if (services[sName]) {
+                    if (!services[sName].rates) services[sName].rates = {};
+                    if (!services[sName].countries) services[sName].countries = [];
+                    services[sName].rates[pattern] = rate;
+                    if (!services[sName].countries.includes(pattern)) services[sName].countries.push(pattern);
+                    bot.sendMessage(chatId, `✅ Rate for **${sName} (Pattern: ${pattern})** set to $${rate.toFixed(4)}`, { parse_mode: "Markdown" });
+                } else {
+                    bot.sendMessage(chatId, "❌ Service not found. Add service first.");
+                }
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Pattern Rate`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+        if (action === 'deleting_range') {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                const sName = parts[0];
+                const pattern = parts.slice(1).join(' ');
+                
+                if (services[sName]) {
+                    const patternIndex = services[sName].countries.indexOf(pattern);
+                    if (patternIndex > -1) {
+                        services[sName].countries.splice(patternIndex, 1);
+                        delete services[sName].rates[pattern];
+                        bot.sendMessage(chatId, `🗑 Deleted range **${pattern}** from **${sName}**.`, { parse_mode: "Markdown" });
+                    } else {
+                        bot.sendMessage(chatId, `❌ Range **${pattern}** not found in **${sName}**.`);
+                    }
+                } else {
+                    bot.sendMessage(chatId, "❌ Service not found.");
+                }
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid format. Use: `ServiceName Pattern`", { parse_mode: "Markdown" });
+            }
+            delete adminActionState[userId];
+            return;
+        }
+                }
+
+    if (isAdmin(userId) && broadcastState[userId]) {
+        const userList = Object.keys(users);
+        let success = 0;
+        for (const id of userList) {
+            try { await bot.copyMessage(id, chatId, msg.message_id); success++; } catch (e) {}
+        }
+        delete broadcastState[userId];
+        return bot.sendMessage(chatId, `✅ Broadcast Complete!\n📊 Total Sent: ${success}`);
+    }
+
+    if (isAdmin(userId) && groupSettingState[userId]) {
+        const type = groupSettingState[userId];
+        if (type === "set_otp_link") config.otpGroup = msgText;
+        if (type === "set_update_link") config.updateGroup = msgText;
+        if (type === "set_otp_user") config.otpUsername = msgText;
+        if (type === "set_update_user") config.updateUsername = msgText;
+        if (type === "set_otp_btn_text") config.otpButtonText = msgText; 
+        if (type === "set_otp_btn_link") config.otpButtonUrl = msgText;
+        if (type === "set_update_btn_name") config.channel1Name = msgText;
+        if (type === "set_otp_btn_name") config.channel2Name = msgText;
+        
+        delete groupSettingState[userId];
+        return bot.sendMessage(chatId, `✅ ${type.replace('set_', '').replace(/_/g, ' ').toUpperCase()} updated successfully!`, {
+            reply_markup: { inline_keyboard: [[{ text: "🔙 Back to Settings", callback_data: "admin_group_settings" }]] }
+        });
+    }
+
+    if (isAdmin(userId)) {
+        if (msgText === '/admin') return sendAdminPanel(chatId);
+        if (msgText.startsWith('/seeuser')) {
+            const parts = msgText.split(' ');
+            const target = parts[1];
+            if (!target) {
+                const ids = Object.keys(users);
+                let list = `📊 **Total Users:** ${ids.length}\n\n`;
+                ids.forEach((id, i) => {
+                    list += `${i+1}. @${users[id].username} | \`${id}\` | Bal: $${users[id].balance.toFixed(2)} ${users[id].isBanned ? '(BANNED)' : ''}\n`;
+                });
+                return bot.sendMessage(chatId, list.substring(0, 4000), { parse_mode: "Markdown" });
+            }
+            const u = findUser(target);
+            if (u) return bot.sendMessage(chatId, `👤 **User Info:**\n🆔 ID: \`${u.id}\`\n👤 Username: @${u.username}\n💰 Balance: $${u.balance.toFixed(4)}\n🚫 Banned: ${u.isBanned ? 'Yes' : 'No'}`, { parse_mode: "Markdown" });
+            return bot.sendMessage(chatId, "❌ User not found.");
+        }
+        if (msgText.startsWith('/baladduser') || msgText.startsWith('/addbaluser')) {
+            const parts = msgText.trim().split(/\s+/);
+            if (parts.length < 3) return bot.sendMessage(chatId, "⚠️ Usage: `/baladduser ID 5.00`", { parse_mode: "Markdown" });
+            const u = findUser(parts[1]);
+            const amt = parseFloat(parts[2]);
+            if (u && !isNaN(amt)) {
+                users[u.id].balance += amt;
+                bot.sendMessage(u.id, `💰 Admin added $${amt.toFixed(4)} to your balance.`, { parse_mode: "Markdown" }).catch(() => {});
+                return bot.sendMessage(chatId, `✅ Added $${amt} to @${u.username}. New Bal: $${users[u.id].balance.toFixed(4)}`);
+            }
+            return bot.sendMessage(chatId, "❌ Failed to add balance.");
+        }
+    }
+
+    if (msgText.startsWith('/start')) {
+        const parts = msgText.split(' ');
+        
+        if (parts.length > 1 && parts[1].startsWith('ref_')) {
+            const refId = parts[1].split('_')[1];
+            
+            if (!users[userId] || (users[userId] && users[userId].referredBy === null && userId != refId)) {
+                if (!users[userId]) {
+                    users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
+                }
+                
+                if (users[userId].referredBy === null && users[users[refId]] && refId != userId) {
+                    users[userId].referredBy = refId;
+                    users[refId].referrals = (users[refId].referrals || 0) + 1;
+                    
+                    let refferMsg = `╔════════════════════╗\n` +
+                                    `  🎁 *Referral Milestone!*\n\n` +
+                                    `  User \`${userId}\` has joined\n` +
+                                    `  using your link! ||\n\n` +
+                                    `  👥 Total Referrals: ${users[refId].referrals}\n` +
+                                    `  💰 Total Earned: \`$${(users[refId].earnings || 0).toFixed(4)}\`\n\n` +
+                                    `  Keep sharing to earn more! ||\n` +
+                                    `╚════════════════════╝`;
+                    
+                    bot.sendMessage(refId, refferMsg, { parse_mode: "Markdown" }).catch(() => {});
+                }
+            }
+        }
+        
+        if (!(await checkJoin(userId)) && !isAdmin(userId)) return sendJoinMessage(chatId);
+        return sendMainMenu(chatId, msg.from.username);
+    }
 
     if (withdrawStates[userId]) {
         const state = withdrawStates[userId];
@@ -905,253 +1522,9 @@ bot.on('message', async (msg) => {
             if (isNaN(amount) || amount > users[userId].balance) return bot.sendMessage(chatId, "❌ Invalid amount.");
             state.amount = amount; state.step = 3;
             bot.sendMessage(chatId, `⚠️ Confirm transfer $${amount.toFixed(4)} to \`${state.targetId}\`?`, { 
-                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ No", callback_data: "main_menu" }]] } 
+                reply_markup: { inline_keyboard: [[{ text: "✅ Confirm", callback_data: "confirm_transfer" }, { text: "❌ Cancel", callback_data: "main_menu" }]] } 
             });
         }
         return;
-    }
-
-    if (broadcastState[userId] && isAdmin(userId)) {
-        delete broadcastState[userId];
-        const ids = Object.keys(users);
-        bot.sendMessage(chatId, `📢 Broadcasting to ${ids.length} users...`);
-        ids.forEach(id => {
-            bot.sendMessage(id, msgText).catch(() => {});
-        });
-        return;
-    }
-
-    if (groupSettingState[userId] && isAdmin(userId)) {
-        const field = groupSettingState[userId];
-        delete groupSettingState[userId];
-        
-        if (field === 'set_otp_link') config.otpGroup = msgText;
-        if (field === 'set_update_link') config.updateGroup = msgText;
-        if (field === 'set_otp_user') config.otpUsername = msgText;
-        if (field === 'set_update_user') config.updateUsername = msgText;
-        if (field === 'set_otp_btn_name') config.channel2Name = msgText;
-        if (field === 'set_update_btn_name') config.channel1Name = msgText;
-        if (field === 'set_otp_btn_text') config.otpButtonText = msgText;
-        if (field === 'set_otp_btn_link') config.otpButtonUrl = msgText;
-
-        return bot.sendMessage(chatId, "✅ Settings updated successfully!");
-    }
-
-    if (adminActionState[userId] && isAdmin(userId)) {
-        const action = adminActionState[userId];
-        delete adminActionState[userId];
-
-        if (action === 'setting_manual_otp_link') {
-            config.manualOtpGroup = msgText.trim();
-            return bot.sendMessage(chatId, `✅ Global Manual OTP Group link set to: \`${config.manualOtpGroup}\``, { parse_mode: "Markdown" });
-        }
-        if (action === 'setting_fake_interval') {
-            const secs = parseInt(msgText.trim());
-            if (isNaN(secs)) return bot.sendMessage(chatId, "❌ Invalid seconds value.");
-            fakeIntervalTime = secs * 1000;
-            startFakeOtpLoop();
-            return bot.sendMessage(chatId, `✅ Fake OTP interval updated to **${secs}** seconds.`, { parse_mode: "Markdown" });
-        }
-        if (action === 'adding_fake_service') {
-            const parts = msgText.split(' ');
-            const name = parts[0];
-            const icon = parts[1] || "📱";
-            if (!name) return bot.sendMessage(chatId, "❌ Missing service name.");
-            fakeServices.push({ name, icon });
-            return bot.sendMessage(chatId, `✅ Fake service \`${name}\` added.`, { parse_mode: "Markdown" });
-        }
-        if (action === 'adding_fake_country') {
-            const parts = msgText.split(' ');
-            const name = parts[0];
-            const flag = parts[1] || "🌎";
-            const code = parts[2] || "1";
-            if (!name) return bot.sendMessage(chatId, "❌ Missing country name.");
-            fakeCountries.push({ name, flag, code });
-            return bot.sendMessage(chatId, `✅ Fake country \`${name}\` added.`, { parse_mode: "Markdown" });
-        }
-        if (action === 'setting_number_limit') {
-            const lim = parseInt(msgText.trim());
-            if (isNaN(lim)) return bot.sendMessage(chatId, "❌ Invalid number limit.");
-            numberLimit = lim;
-            return bot.sendMessage(chatId, `✅ Maximum number limit set to **${numberLimit}**`, { parse_mode: "Markdown" });
-        }
-        if (action === 'adding_new_admin') {
-            const target = findUser(msgText.trim());
-            const id = target ? Number(target.id) : Number(msgText.trim());
-            if (isNaN(id)) return bot.sendMessage(chatId, "❌ Invalid ID.");
-            if (!extraAdmins.includes(id)) extraAdmins.push(id);
-            return bot.sendMessage(chatId, `✅ User \`${id}\` added to Manager list!`, { parse_mode: "Markdown" });
-        }
-        if (action === 'removing_admin') {
-            const target = findUser(msgText.trim());
-            const id = target ? Number(target.id) : Number(msgText.trim());
-            extraAdmins = extraAdmins.filter(a => a !== id);
-            return bot.sendMessage(chatId, `✅ User \`${id}\` removed from Manager list!`, { parse_mode: "Markdown" });
-        }
-        if (action === 'adding_service') {
-            const sName = msgText.trim().toLowerCase();
-            if (!services[sName]) services[sName] = { rates: {} };
-            return bot.sendMessage(chatId, `✅ Service **${sName.toUpperCase()}** created successfully!`, { parse_mode: "Markdown" });
-        }
-        if (action === 'deleting_service') {
-            const sName = msgText.trim().toLowerCase();
-            delete services[sName];
-            manualNumbers = manualNumbers.filter(m => m.service.toLowerCase() !== sName);
-            return bot.sendMessage(chatId, `🗑 Service **${sName.toUpperCase()}** and its numbers wiped!`, { parse_mode: "Markdown" });
-        }
-        if (action === 'deleting_range') {
-            const parts = msgText.split(' ');
-            const sName = parts[0].toLowerCase();
-            const pattern = parts[1];
-            if (!services[sName]) return bot.sendMessage(chatId, "❌ Service not found.");
-            delete services[sName].rates[pattern];
-            manualNumbers = manualNumbers.filter(m => !(m.service.toLowerCase() === sName && m.number.toString().startsWith(pattern)));
-            return bot.sendMessage(chatId, `✅ Range **${pattern}** deleted from ${sName.toUpperCase()}`, { parse_mode: "Markdown" });
-        }
-        if (action === 'adding_rate') {
-            const parts = msgText.split(' ');
-            const sName = parts[0].toLowerCase();
-            const pattern = parts[1];
-            const rate = parseFloat(parts[2]);
-            if (isNaN(rate) || !sName || !pattern) return bot.sendMessage(chatId, "❌ Invalid Format.");
-            if (!services[sName]) services[sName] = { rates: {} };
-            services[sName].rates[pattern] = rate;
-            return bot.sendMessage(chatId, `✅ Added/Updated Rate for **${sName.toUpperCase()}** (${pattern}) -> $${rate.toFixed(4)}`, { parse_mode: "Markdown" });
-        }
-    }
-});
-
-// --- COMMANDS ---
-bot.onText(/\/start/, async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const text = msg.text;
-
-    if (!users[userId]) {
-        let referredBy = null;
-        if (text.includes('ref_')) {
-            const refId = parseInt(text.split('ref_')[1]);
-            if (refId && refId !== userId && users[refId]) {
-                referredBy = refId;
-                users[refId].referrals = (users[refId].referrals || 0) + 1;
-                bot.sendMessage(refId, "👥 **New Referral!**\nSomeone joined using your referral link!").catch(() => {});
-            }
-        }
-        users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy };
-    } else {
-        users[userId].username = msg.from.username || 'User';
-    }
-
-    const joined = await checkJoin(userId);
-    if (!joined && !isAdmin(userId)) {
-        return sendJoinMessage(chatId);
-    }
-    sendMainMenu(chatId, msg.from.username);
-});
-
-bot.onText(/\/panel/, (msg) => {
-    if (isAdmin(msg.from.id)) sendAdminPanel(msg.chat.id);
-});
-
-bot.onText(/\/ban (.+)/, (msg, match) => {
-    if (!isAdmin(msg.from.id)) return;
-    const target = findUser(match[1].trim());
-    if (target) {
-        users[target.id].isBanned = true;
-        bot.sendMessage(msg.chat.id, `✅ User \`${target.id}\` banned successfully.`, { parse_mode: "Markdown" });
-    } else {
-        bot.sendMessage(msg.chat.id, "❌ User not found.");
-    }
-});
-
-bot.onText(/\/unban (.+)/, (msg, match) => {
-    if (!isAdmin(msg.from.id)) return;
-    const target = findUser(match[1].trim());
-    if (target) {
-        users[target.id].isBanned = false;
-        bot.sendMessage(msg.chat.id, `✅ User \`${target.id}\` unbanned successfully.`, { parse_mode: "Markdown" });
-    } else {
-        bot.sendMessage(msg.chat.id, "❌ User not found.");
-    }
-});
-
-bot.onText(/\/addbal (.+) (.+)/, (msg, match) => {
-    if (!isAdmin(msg.from.id)) return;
-    const target = findUser(match[1].trim());
-    const amt = parseFloat(match[2].trim());
-    if (target && !isNaN(amt)) {
-        users[target.id].balance += amt;
-        bot.sendMessage(msg.chat.id, `✅ Added $${amt.toFixed(4)} to \`${target.id}\` balance.`, { parse_mode: "Markdown" });
-    } else {
-        bot.sendMessage(msg.chat.id, "❌ User or Amount invalid.");
-    }
-});
-
-bot.onText(/\/rembal (.+) (.+)/, (msg, match) => {
-    if (!isAdmin(msg.from.id)) return;
-    const target = findUser(match[1].trim());
-    const amt = parseFloat(match[2].trim());
-    if (target && !isNaN(amt)) {
-        users[target.id].balance = Math.max(0, users[target.id].balance - amt);
-        bot.sendMessage(msg.chat.id, `✅ Removed $${amt.toFixed(4)} from \`${target.id}\` balance.`, { parse_mode: "Markdown" });
-    } else {
-        bot.sendMessage(msg.chat.id, "❌ User or Amount invalid.");
-    }
-});
-
-// --- BULK DOCUMENT / TEXT PROCESSING FOR MANUAL NUMBERS ---
-bot.onText(/\/bulkotplink (.+) (.+) (.+) (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    if (!isAdmin(msg.from.id)) return;
-
-    const sName = match[1].toLowerCase();
-    const cName = match[2];
-    const rate = parseFloat(match[3]);
-    const otpLink = match[4].trim();
-
-    if (isNaN(rate) || !sName || !cName || !otpLink) {
-        return bot.sendMessage(chatId, "❌ Format parameters mismatch.");
-    }
-
-    bot.sendMessage(chatId, `📥 Format accepted. Please upload text document containing number lines for **${sName.toUpperCase()}**...`);
-    adminActionState[msg.from.id] = { type: 'bulk_otp_upload', service: sName, country: cName, rate: rate, link: otpLink };
-});
-
-bot.on('document', async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-
-    if (!isAdmin(userId) || !adminActionState[userId] || adminActionState[userId].type !== 'bulk_otp_upload') return;
-    const state = adminActionState[userId];
-    delete adminActionState[userId];
-
-    try {
-        const fileLink = await bot.getFileLink(msg.document.file_id);
-        
-        https.get(fileLink, (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-                const lines = data.split(/\r?\n/);
-                let count = 0;
-
-                lines.forEach(line => {
-                    const cleanNum = line.replace(/[^0-9]/g, '');
-                    if (cleanNum.length > 5) {
-                        manualNumbers.push({
-                            service: state.service, country: state.country, number: parseInt(cleanNum), rate: state.rate, otpLink: state.link
-                        });
-                        count++;
-                    }
-                });
-                
-                if (!services[state.service]) services[state.service] = { rates: {} };
-                services[state.service].rates["ManualPool"] = state.rate;
-
-                bot.sendMessage(chatId, `✅ **Bulk Upload Finished!**\nSuccessfully imported **${count}** numbers to ${state.service.toUpperCase()}.\nCustom Link: ${state.link}`);
-            });
-        });
-    } catch (e) {
-        bot.sendMessage(chatId, "❌ Document extraction configuration crashed.");
     }
 });
