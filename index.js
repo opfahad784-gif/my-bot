@@ -334,18 +334,12 @@ bot.on('message', async (groupMsg) => {
     if (!isOtpGroup) return;
 
     const text = groupMsg.text;
-    
-    let incomingOtp = "";
-    let otpMatch = text.match(/(?:𝙾𝚃🔑|𝙾𝚃package)\s*»\s*`?(\d+)/i);
-    if (otpMatch) incomingOtp = otpMatch[1];
-
-    if (!incomingOtp) return; 
 
     assignedNumbers.forEach(async (numData) => {
         const rawNumStr = numData.number.toString();
         const targetLast4 = rawNumStr.slice(-4);
 
-        // --- MATCHING LOGIC TO FORWARD THE GROUP MESSAGE DIRECTLY TO THE USER ---
+        // --- FIXED MATCHING LOGIC: IF GROUP TEXT INCLUDES USER'S LAST 4 DIGIT, FORWARD IT DIRECTLY ---
         if (text.includes(targetLast4)) {
             const userId = numData.userId;
 
@@ -364,9 +358,9 @@ bot.on('message', async (groupMsg) => {
                 bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
             }
 
-            // Original template layout bad diye gorup message text user k pathano hobe
+            // Directly forward the full group message text to the user
             bot.sendMessage(userId, text, { parse_mode: "Markdown" }).catch(() => {
-                bot.sendMessage(userId, text).catch(() => {}); // Fallback in case of markdown errors
+                bot.sendMessage(userId, text).catch(() => {}); // Fallback fallback formatting error eparer jonne
             });
 
             assignedNumbers = assignedNumbers.filter(n => n.number !== numData.number);
@@ -1227,7 +1221,7 @@ bot.on('message', async (msg) => {
                                         rate: customRate, 
                                         otpGroup: customGroupLink,
                                         isUsed: false 
-                                    });
+                            });
                                     count++;
                                 }
                             });
