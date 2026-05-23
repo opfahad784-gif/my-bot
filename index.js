@@ -285,7 +285,7 @@ const sendMainMenu = (chatId, username) => {
     }
     
     const welcomeMsg = `👋 **Hello @${username || 'User'}!**\n\n` +
-                       `🚀 **Welcome to NH NUMBER BOT 🔥⚡ Bot**\n` +
+                       `🚀 **Welcome to YOOO SMS 🔥⚡ Bot**\n` +
                        `━━━━━━━━━━━━━━━━━━\n` +
                        `💰 **Balance:** $${(users[chatId]?.balance || 0).toFixed(4)}\n` +
                        `📱 **Total Active:** ${assignedNumbers.filter(n => n.userId === chatId).length}\n` +
