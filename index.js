@@ -49,7 +49,8 @@ let config = {
     otpButtonText: "Get Number Now",
     otpButtonUrl: "https://t.me/YourBotLink",
     channel1Name: "📢 Join Channel 1",
-    channel2Name: "📢 Join Channel 2"
+    channel2Name: "📢 Join Channel 2",
+    manualOtpGroup: "https://t.me/nhotpnumber" // New manual group link configuration
 };
 
 // --- DYNAMIC FAKE OTP SETTINGS (Admin Configurable) ---
@@ -311,6 +312,7 @@ const sendAdminPanel = (chatId) => {
                 [{ text: "💰 Add Rate", callback_data: "admin_add_rate" }, { text: "🗑 Delete Range", callback_data: "admin_del_num" }],
                 [{ text: "🔗 Bulk Add (Set Link)", callback_data: "admin_bulk_add" }],
                 [{ text: "🔗 Bulk Add With OTP Link", callback_data: "admin_bulk_otp_link" }],
+                [{ text: "🔗 Set Manual OTP Link", callback_data: "admin_set_manual_link" }],
                 [{ text: "📊 Check Nexa Range", callback_data: "admin_check_range" }],
                 [{ text: "👤 Edit Admin", callback_data: "admin_edit_manager" }], 
                 [{ text: "✅ Withdraw ON", callback_data: "admin_withdraw_on" }, { text: "❌ Withdraw OFF", callback_data: "admin_withdraw_off" }],
@@ -414,6 +416,11 @@ bot.on('callback_query', async (query) => {
         else if (data === "admin_bulk_add" || data === "admin_bulk_otp_link") {
             if (!isAdmin(userId)) return;
             bot.sendMessage(chatId, "📦 **Bulk Add Numbers with Custom OTP Link**\nFormat: Send `/bulkotplink servicename countryname perotprate otpgrouplink` and upload your file.");
+        }
+        else if (data === "admin_set_manual_link") {
+            if (!isAdmin(userId)) return;
+            adminActionState[userId] = 'setting_manual_otp_link';
+            bot.sendMessage(chatId, "🔗 **Set Global Manual OTP Group Link**\nManual নম্বরের নিচে থাকা OTP Group বাটনের জন্য নতুন লিঙ্কটি পাঠান:");
         }
         else if (data === "admin_fake_settings") {
             if (!isAdmin(userId)) return;
@@ -709,11 +716,13 @@ bot.on('callback_query', async (query) => {
                 manualNum.isUsed = true;
                 const reward = manualNum.rate || services[sName]?.rates[rangePattern] || 0.0030;
                 const flag = getFlag(country);
-                const targetedOtpGroup = manualNum.otpGroup || config.otpGroup;
+                
+                // If a bulk link exists for this specific number, use it. Otherwise, fallback to the global manual link configuration.
+                const targetedOtpGroup = manualNum.otpGroup || config.manualOtpGroup || config.otpGroup;
 
                 // --- NEW EXPLICIT SPECIFIED UI FORMAT (SCREENSHOT & TEXT MATCH) ---
                 const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
-                                        `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛𝚢 » ${country}\n` +
+                                        `Flag ᯓ𝙲𝚘𝚞𝚗𝚝𝚛ｙ » ${country}\n` +
                                         `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${manualNum.number}\`\n` +
                                         `⏳ᯓStatus » waiting for sms\n` +
                                         `💰ᯓREWARDS » $${reward.toFixed(4)}`;
@@ -1108,6 +1117,17 @@ bot.on('message', async (msg) => {
     if (isAdmin(userId) && adminActionState[userId] && typeof adminActionState[userId] === 'string') {
         const action = adminActionState[userId]; 
         
+        if (action === 'setting_manual_otp_link') {
+            if (msgText.startsWith('http://') || msgText.startsWith('https://')) {
+                config.manualOtpGroup = msgText.trim();
+                bot.sendMessage(chatId, `✅ Global Manual OTP Group Link updated to:\n${config.manualOtpGroup}`);
+            } else {
+                bot.sendMessage(chatId, "❌ Invalid URL! Please enter a valid link starting with http/https.");
+            }
+            delete adminActionState[userId];
+            return;
+        }
+
         if (action === 'setting_fake_interval') {
             const secs = parseInt(msgText.trim());
             if (!isNaN(secs) && secs > 0) {
