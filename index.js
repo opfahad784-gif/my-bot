@@ -28,7 +28,6 @@ let assignedNumbers = [];
 let manualNumbers = []; // Storage for bulk numbers
 let transferStates = {};
 let withdrawStates = {};
-let nexatStates = {};
 let isWithdrawActive = false;
 let broadcastState = {};
 let groupSettingState = {};
@@ -36,12 +35,14 @@ let adminActionState = {};
 let extraAdmins = [];
 let numberLimit = 1; 
 
-let recentGroupOtps = []; // NEW: Array to store recent group messages for manual search
-
-// NEW STATES FOR SEARCH OTP & 2FA
+let recentGroupOtps = []; // Array to store recent group messages for manual search
 let searchOtpState = {};
 let watchingNumbers = [];
 let twoFaStates = {}; // Storage for 2FA tracking
+
+// ADDED TO FIX REFERENCE ERROR
+let nexaStates = {}; 
+let nexatStates = {}; 
 
 // TRAFFIC DATA STORE
 let otpTraffic = {}; 
@@ -922,6 +923,71 @@ bot.on('callback_query', async (query) => {
                 }
             }
         }
+        else if (data.startsWith("srcotp_")) {
+            const targetNum = data.split("_")[1];
+            const last4 = targetNum.slice(-4);
+            
+            const numData = assignedNumbers.find(n => n.number === targetNum && n.userId === userId);
+            if (!numData) {
+                return bot.answerCallbackQuery(query.id, { text: "❌ Active number not found!", show_alert: true });
+            }
+
+            // 1. Play "code fetch" animation on the UI
+            try {
+                await bot.editMessageText(`♻️ **code fetch.**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await bot.editMessageText(`♻️ **code fetch..**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 700));
+                await bot.editMessageText(`♻️ **code fetch...**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
+                await new Promise(resolve => setTimeout(resolve, 600));
+            } catch(e) {}
+            
+            // 2. Check group recent OTP history (-1003958220896)
+            const foundMsg = recentGroupOtps.find(text => text.includes(last4));
+            
+            if (foundMsg) {
+                bot.sendMessage(userId, foundMsg, { parse_mode: "Markdown" }).catch(() => {
+                    bot.sendMessage(userId, foundMsg).catch(() => {});
+                });
+                bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+                
+                // Add balance and remove from assigned
+                const targetIndex = assignedNumbers.findIndex(n => n.number === targetNum && n.userId === userId);
+                if (targetIndex !== -1) {
+                    if (assignedNumbers[targetIndex].checkOTPIteration) clearInterval(assignedNumbers[targetIndex].checkOTPIteration);
+                    if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
+                    users[userId].balance += assignedNumbers[targetIndex].reward;
+                    
+                    if (users[userId].referredBy && users[users[userId].referredBy]) {
+                        const refId = users[userId].referredBy;
+                        const commission = assignedNumbers[targetIndex].reward * REFERRAL_COMMISSION;
+                        users[refId].balance += commission;
+                        users[refId].earnings += commission;
+                        bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
+                    }
+                    assignedNumbers.splice(targetIndex, 1);
+                }
+            } else {
+                // Not found -> Revert to assigned layout
+                const country = getCountryByPattern(numData.range);
+                const assignedCaption = `𓆩𓆩.${numData.flag}🟢 ASSIGNED .𓆪𓆪\n` +
+                                        `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
+                                        `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${numData.number}\`\n` +
+                                        `⏳ᯓStatus » waiting for sms\n` +
+                                        `💰ᯓREWARDS » $${numData.reward.toFixed(4)}`;
+                
+                bot.editMessageText(assignedCaption, {
+                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
+                    reply_markup: { 
+                        inline_keyboard: [
+                            [{ text: "🔄 Change Number", callback_data: `chg_${numData.service}_${numData.range}_${numData.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${numData.number}` }], 
+                            [{ text: "📱 Otp Group", url: numData.otpGroup || config.otpGroup }]
+                        ] 
+                    }
+                }).catch(() => {});
+                bot.answerCallbackQuery(query.id, { text: "❌ OTP Not Found in Group yet!", show_alert: true });
+            }
+        }
         else if (data.startsWith("chg_")) {
             const [, sName, rangePattern, oldNum] = data.split("_");
             const country = getCountryByPattern(rangePattern);
@@ -986,60 +1052,6 @@ bot.on('callback_query', async (query) => {
                 };
 
                 let checkOTP = setInterval(async () => {
-                    try {
-                        const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
-                        if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
-                            clearInterval(checkOTP);
-                            otpTraffic[sName] = (otpTraffic[sName] || 0) + 1;
-                            if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
-                            users[userId].balance += reward;
-                            bot.deleteMessage(chatId, numData.messageId).catch(() => {});
-                            const successMsg = `╔═════════════════╗\n` +
-                                               `║ ${numData.flag} ${numData.service.toUpperCase()} + $${numData.reward.toFixed(4)} ║\n` +
-                                               `╚═════════════════╝\n` +
-                                               `   ————— YOUR OTP————\n` +
-                                               `                 🔑= \`${otpRes.data.otp}\``;
-                            bot.sendMessage(userId, successMsg, { parse_mode: "Markdown" });
-                            assignedNumbers = assignedNumbers.filter(n => n.number_id !== numData.number_id);
-                        }
-                    } catch (err) {}
-                }, 2000);
-                numData.checkOTPIteration = checkOTP;
-                assignedNumbers.push(numData);
-            } else {
-                try {
-                    const response = await axios.get(`${NEXA_BASE_URL}console/logs?api_key=${NEXA_API_KEY}&service=${encodeURIComponent(sName)}&limit=50&range=${encodeURIComponent(rangePattern)}`).catch(() => null);
-                    if (response && response.data && response.data.success) {
-                        const reward = services[sName]?.rates[rangePattern] || 0.0030;
-                        const assignedCaption = `𓆩𓆩.${flag}🟢 ASSIGNED .𓆪𓆪\n` +
-                                                `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
-                                                `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${response.data.number}\`\n` +
-                                                `⏳ᯓStatus » waiting for sms\n` +
-                                                `💰ᯓREWARDS » $${reward.toFixed(4)}`;
-
-                        await bot.editMessageText(assignedCaption, {
-                            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                            reply_markup: { 
-                                inline_keyboard: [
-                                    [{ text: "🔄 Change Number", callback_data: `chg_${sName}_${rangePattern}_${response.data.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${response.data.number}` }], 
-                                    [{ text: "📱 Otp Group", url: config.otpGroup }]
-                                ] 
-                            }
-                        });
-
-                        const numData = {
-                            service: sName,
-                            range: rangePattern,
-                            number: response.data.number,
-                            number_id: response.data.number_id,
-                            userId: userId,
-                            messageId: query.message.message_id,
-                            reward: reward,
-                            flag: flag,
-                            isManual: false
-                        };
-
-                        let checkOTP = setInterval(async () => {
                             try {
                                 const otpRes = await axios.get(`${NEXA_BASE_URL}numbers/${numData.number_id}/sms?api_key=${NEXA_API_KEY}`).catch(() => null);
                                 if (otpRes && otpRes.data && otpRes.data.success && otpRes.data.otp) {
