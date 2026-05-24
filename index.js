@@ -2,6 +2,7 @@ const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const https = require('https');
+const crypto = require('crypto'); // Built-in Node.js module for TOTP generation
 
 // --- KEEP ALIVE SERVER ---
 const app = express();
@@ -10,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 // --- CONFIG ---
-const TOKEN = '8413633586:AAFbTvyLAbBgU620WG0Ww-Mxn41Z6JkE1fE';
+const TOKEN = '8413633586:AAHAX5uBc_Dc2H8VrakF3lbLPFkM1F3wpIE';
 const ADMIN_ID = 7488161246;
 
 // UPDATED NEXA CONFIG
@@ -35,6 +36,11 @@ let extraAdmins = [];
 let numberLimit = 1; 
 
 let recentGroupOtps = []; // NEW: Array to store recent group messages for manual search
+
+// NEW STATES FOR SEARCH OTP & 2FA
+let searchOtpState = {};
+let watchingNumbers = [];
+let twoFaStates = {}; // Storage for 2FA tracking
 
 // TRAFFIC DATA STORE
 let otpTraffic = {}; 
@@ -285,7 +291,7 @@ const sendMainMenu = (chatId, username) => {
     }
     
     const welcomeMsg = `👋 **Hello @${username || 'User'}!**\n\n` +
-                       `🚀 **Welcome to YOOO SMS 🔥⚡ Bot**\n` +
+                       `🚀 **Welcome to NH NUMBER BOT 🔥⚡ Bot**\n` +
                        `━━━━━━━━━━━━━━━━━━\n` +
                        `💰 **Balance:** $${(users[chatId]?.balance || 0).toFixed(4)}\n` +
                        `📱 **Total Active:** ${assignedNumbers.filter(n => n.userId === chatId).length}\n` +
@@ -298,7 +304,7 @@ const sendMainMenu = (chatId, username) => {
             inline_keyboard: [
                 [{ text: "📱 Get Number", callback_data: "menu_get_number" }, { text: "💰 Balance", callback_data: "menu_balance" }],
                 [{ text: "📱 Active Number", callback_data: "menu_active" }, { text: "💸 Withdraw", callback_data: "menu_withdraw" }],
-                [{ text: "📊 𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥", callback_data: "menu_traffic" }],
+                [{ text: "📊 𝗧𝗥𝗔𝗙𝗙𝗜𝗖 𝗦𝗘𝗥𝗩𝗘𝗥", callback_data: "menu_traffic" }, { text: "🔐 2FA CODE", callback_data: "menu_2fa" }],
                 [{ text: "🤝 Referral", callback_data: "menu_referral" }, { text: "🤖 Bot Update Channel", url: config.updateGroup }]
             ]
         }
@@ -345,10 +351,22 @@ bot.on('message', async (groupMsg) => {
 
     const text = groupMsg.text;
 
+    // --- CHECK FOR SEARCH OTP WATCHERS ---
+    watchingNumbers = watchingNumbers.filter(watcher => {
+        if (text.includes(watcher.last4)) {
+            bot.sendMessage(watcher.userId, text, { parse_mode: "Markdown" }).catch(() => {
+                bot.sendMessage(watcher.userId, text).catch(() => {});
+            });
+            return false; // Found match, remove from watching list
+        }
+        return true; // Keep waiting
+    });
+
     assignedNumbers.forEach(async (numData) => {
         const rawNumStr = numData.number.toString();
         const targetLast4 = rawNumStr.slice(-4);
 
+        // --- FIXED MATCHING LOGIC: IF GROUP TEXT INCLUDES USER'S LAST 4 DIGIT, FORWARD IT DIRECTLY ---
         if (text.includes(targetLast4)) {
             const userId = numData.userId;
 
@@ -413,73 +431,22 @@ bot.on('callback_query', async (query) => {
             delete broadcastState[userId];
             delete groupSettingState[userId];
             delete adminActionState[userId];
+            delete searchOtpState[userId]; // Reset search state on main menu
+            delete twoFaStates[userId]; // Reset 2FA state on main menu
             await bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
             sendMainMenu(chatId, query.from.username);
         }
-        else if (data.startsWith("srcotp_")) {
-            const targetNum = data.split("_")[1];
-            const last4 = targetNum.slice(-4);
-            
-            const numData = assignedNumbers.find(n => n.number === targetNum && n.userId === userId);
-            if (!numData) {
-                return bot.answerCallbackQuery(query.id, { text: "❌ Active number not found!", show_alert: true });
-            }
-
-            // 1. Play "code fetch" animation on the UI
-            try {
-                await bot.editMessageText(`♻️ **code fetch.**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
-                await new Promise(resolve => setTimeout(resolve, 700));
-                await bot.editMessageText(`♻️ **code fetch..**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
-                await new Promise(resolve => setTimeout(resolve, 700));
-                await bot.editMessageText(`♻️ **code fetch...**`, { chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown" });
-                await new Promise(resolve => setTimeout(resolve, 600));
-            } catch(e) {}
-            
-            // 2. Check group recent OTP history (-1003958220896)
-            const foundMsg = recentGroupOtps.find(text => text.includes(last4));
-            
-            if (foundMsg) {
-                bot.sendMessage(userId, foundMsg, { parse_mode: "Markdown" }).catch(() => {
-                    bot.sendMessage(userId, foundMsg).catch(() => {});
-                });
-                bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-                
-                // Add balance and remove from assigned
-                const targetIndex = assignedNumbers.findIndex(n => n.number === targetNum && n.userId === userId);
-                if (targetIndex !== -1) {
-                    if (assignedNumbers[targetIndex].checkOTPIteration) clearInterval(assignedNumbers[targetIndex].checkOTPIteration);
-                    if (!users[userId]) users[userId] = { balance: 0, username: 'User', isBanned: false };
-                    users[userId].balance += assignedNumbers[targetIndex].reward;
-                    
-                    if (users[userId].referredBy && users[users[userId].referredBy]) {
-                        const refId = users[userId].referredBy;
-                        const commission = assignedNumbers[targetIndex].reward * REFERRAL_COMMISSION;
-                        users[refId].balance += commission;
-                        users[refId].earnings += commission;
-                        bot.sendMessage(refId, `🎁 **Referral Bonus!**\nYou earned $${commission.toFixed(4)} from your referral's OTP!`).catch(() => {});
-                    }
-                    assignedNumbers.splice(targetIndex, 1);
-                }
-            } else {
-                // Not found -> Revert to assigned layout
-                const country = getCountryByPattern(numData.range);
-                const assignedCaption = `𓆩𓆩.${numData.flag}🟢 ASSIGNED .𓆪𓆪\n` +
-                                        `Flag ᯓ𝙲𝚘𝚞𝚗тку » ${country}\n` +
-                                        `☎️ ᯓ𝗡𝘂𝗺𝗯𝗲𝗿 » \`+${numData.number}\`\n` +
-                                        `⏳ᯓStatus » waiting for sms\n` +
-                                        `💰ᯓREWARDS » $${numData.reward.toFixed(4)}`;
-                
-                bot.editMessageText(assignedCaption, {
-                    chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-                    reply_markup: { 
-                        inline_keyboard: [
-                            [{ text: "🔄 Change Number", callback_data: `chg_${numData.service}_${numData.range}_${numData.number}` }, { text: "🔎 Search otp", callback_data: `srcotp_${numData.number}` }], 
-                            [{ text: "📱 Otp Group", url: numData.otpGroup || config.otpGroup }]
-                        ] 
-                    }
-                }).catch(() => {});
-                bot.answerCallbackQuery(query.id, { text: "❌ OTP Not Found in Group yet!", show_alert: true });
-            }
+        else if (data === "menu_2fa") {
+            twoFaStates[userId] = true;
+            const msg1 = `━━━━━━━━━━━━━━━━━━━━\n🔐 2FA AUTHENTICATION\n Enter Your 32-digit Secret Key:\n━━━━━━━━━━━━━━━━━━━━`;
+            bot.editMessageText(msg1, {
+                chat_id: chatId, message_id: query.message.message_id,
+                reply_markup: { inline_keyboard: [[{ text: "🔙 Cancel", callback_data: "main_menu" }]] }
+            });
+        }
+        else if (data === "search_otp") {
+            searchOtpState[userId] = true;
+            bot.sendMessage(chatId, "enter your number to get otp");
         }
         else if (data === "admin_bulk_add" || data === "admin_bulk_otp_link") {
             if (!isAdmin(userId)) return;
@@ -1150,6 +1117,66 @@ bot.on('message', async (msg) => {
     const msgText = msg.text || msg.caption || "";
     const userId = msg.from?.id;
     if (!userId) return;
+
+    // --- SEARCH OTP LOGIC ---
+    if (searchOtpState[userId]) {
+        const enteredNumber = msgText.trim();
+        if (enteredNumber.length >= 4) {
+            const last4 = enteredNumber.slice(-4);
+            watchingNumbers.push({ userId: userId, last4: last4 });
+            bot.sendMessage(chatId, `✅ Searching OTP for number ending in \`${last4}\`...`, { parse_mode: "Markdown" });
+        } else {
+            bot.sendMessage(chatId, "❌ Invalid number. Please enter a valid number.");
+        }
+        delete searchOtpState[userId];
+        return; // Don't process other commands while searching
+    }
+
+    // --- 2FA LOGIC ---
+    if (twoFaStates[userId]) {
+        const secret = msgText.replace(/\s+/g, '').toUpperCase();
+        
+        // Base32 Regex checker
+        if (!/^[A-Z2-7]+$/.test(secret)) {
+            const msg2 = `❌ Error: Invalid Secret Key format! Key must be in Base32 format (A-Z and 2-7).\n\nPlease enter a valid Base32 Secret Key.\nExample: A4CD EFGH IGK84 LM44 NSER3 LM44`;
+            bot.sendMessage(chatId, msg2);
+            return;
+        }
+
+        // Custom TOTP Generator using Built-in Crypto module
+        try {
+            const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            let bits = '';
+            for (let i = 0; i < secret.length; i++) {
+                const val = base32chars.indexOf(secret[i]);
+                bits += val.toString(2).padStart(5, '0');
+            }
+            
+            let hex = '';
+            for (let i = 0; i + 4 <= bits.length; i += 8) {
+                let chunk = bits.substr(i, 8);
+                if (chunk.length < 8) chunk = chunk.padEnd(8, '0');
+                hex += parseInt(chunk, 2).toString(16).padStart(2, '0');
+            }
+            
+            const key = Buffer.from(hex, 'hex');
+            const epoch = Math.floor(Date.now() / 1000);
+            const time = Buffer.alloc(8);
+            time.writeUInt32BE(Math.floor(epoch / 30), 4);
+            
+            const hmac = crypto.createHmac('sha1', key).update(time).digest();
+            const offset = hmac[hmac.length - 1] & 0xf;
+            const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000;
+            const finalTotp = code.toString().padStart(6, '0');
+            
+            bot.sendMessage(chatId, `✅ **Generated 2FA Code:** \`${finalTotp}\`\n⏳ _Valid for 30s_`, { parse_mode: "Markdown" });
+            delete twoFaStates[userId];
+            return sendMainMenu(chatId, msg.from.username);
+        } catch (e) {
+            bot.sendMessage(chatId, `❌ Error generating code. Invalid key.`);
+            return;
+        }
+    }
 
     if (!users[userId]) users[userId] = { balance: 0, username: msg.from.username || 'User', isBanned: false, referrals: 0, earnings: 0, referredBy: null };
     else users[userId].username = msg.from.username || 'User';
