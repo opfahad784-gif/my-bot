@@ -28,6 +28,7 @@ let assignedNumbers = [];
 let manualNumbers = []; // Storage for bulk numbers
 let transferStates = {};
 let withdrawStates = {};
+let nexatStates = {};
 let isWithdrawActive = false;
 let broadcastState = {};
 let groupSettingState = {};
