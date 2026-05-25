@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 // --- CONFIG ---
-const TOKEN = '8413633586:AAHItTYedutv-JAbpSBswM2Ch2fpoEaNQ6A';
+const TOKEN = '8742131008:AAFce1Q6To7CuDVWyfGMYB3_V6Qhy1nbudg';
 const ADMIN_ID = 7488161246;
 
 // UPDATED NEXA CONFIG
