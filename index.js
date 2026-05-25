@@ -1095,7 +1095,6 @@ bot.on('callback_query', async (query) => {
                     } else {
                         bot.answerCallbackQuery(query.id, { text: "❌ Numbers out of stock!", show_alert: true });
                     }
-                } catch(e) {}
             }
         }
         else if (data.startsWith("del_")) {
