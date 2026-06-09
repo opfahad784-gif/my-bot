@@ -19,7 +19,7 @@ const TARGET_GROUP_ID = "-1003962635987"; // আপনার ওটিপি ম
 
 // নতুন টার্গেট গ্রুপ যেখানে কমান্ড পাঠাতে হবে
 const COMMAND_GROUP_ID = "-1003958220896"; 
-const COMMAND_TEXT = "//start@flexisms_bot";
+const COMMAND_TEXT = "/start@flexisms_bot";
 
 // আপনার জেনারেট করা সেশন স্ট্রিং
 const userbotSession = new StringSession("1BVtsOJUBu09deEtZA6c7b71MlhqogENxXFZTTtVDesy4n3P1s0bOsgp-hhLQLA5F_ZxzOS6bsM7UfikYJe4Vu7LmETghtXBguK-QcNevaHLxysJ5yhK1sxIKVMjmFOrfagKfx0cCk-IPnWBQwcroXp-JjtKeIzI6jxOI3zVVaYlQ3ZH-00yBmfF5J2PMJDLupL-DibmQWh4xq48Thf0hiZWuZK2tZWD4dQQvaYnYbxE9QigCn8ww6N4ILwATGc0Yt-6uwgGpPoeM1EOkWMaQq1rVnE9xY1x35uu3j11-kBeybLm7CanhO5W8saNBIi-pvbXPNjEfwNeqSnAaq4hQItHFucIlKJU="); 
