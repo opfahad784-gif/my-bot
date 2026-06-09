@@ -14,10 +14,14 @@ app.listen(PORT, () => console.log(`[Render] UserBot web server live on port ${P
 // ২. USERBOT CONFIGURATION
 // ==========================================
 const apiId = 35598399; // আপনার API ID
-const apiHash = "681450d8fed29608b00489ac80f7fdb2"; // আপনার দেওয়া আসল সঠিক API Hash
+const apiHash = "681450d8fed29608b00409ac80f7fdb2"; // আপনার API Hash
 const TARGET_GROUP_ID = "-1003962635987"; // আপনার ওটিপি মেইন গ্রুপের আইডি
 
-// 🎯 আপনার জেনারেট করা সেশন স্ট্রিংটি এখানে পারফেক্টলি বসিয়ে দেওয়া হয়েছে
+// নতুন টার্গেট গ্রুপ যেখানে কমান্ড পাঠাতে হবে
+const COMMAND_GROUP_ID = "-1003958220896"; 
+const COMMAND_TEXT = "//start@flexisms_bot";
+
+// আপনার জেনারেট করা সেশন স্ট্রিং
 const userbotSession = new StringSession("1BVtsOJUBu09deEtZA6c7b71MlhqogENxXFZTTtVDesy4n3P1s0bOsgp-hhLQLA5F_ZxzOS6bsM7UfikYJe4Vu7LmETghtXBguK-QcNevaHLxysJ5yhK1sxIKVMjmFOrfagKfx0cCk-IPnWBQwcroXp-JjtKeIzI6jxOI3zVVaYlQ3ZH-00yBmfF5J2PMJDLupL-DibmQWh4xq48Thf0hiZWuZK2tZWD4dQQvaYnYbxE9QigCn8ww6N4ILwATGc0Yt-6uwgGpPoeM1EOkWMaQq1rVnE9xY1x35uu3j11-kBeybLm7CanhO5W8saNBIi-pvbXPNjEfwNeqSnAaq4hQItHFucIlKJU="); 
 
 const userbot = new TelegramClient(userbotSession, apiId, apiHash, {
@@ -29,7 +33,34 @@ async function startUserBot() {
   await userbot.connect();
   console.log("🎯 UserBot সফলভাবে অনলাইন হয়েছে এবং ফরওয়ার্ড করার জন্য প্রস্তুত!");
 
-  // মেসেজ ডিটেকশন ও ফরওয়ার্ড লজিক
+  // ----------------==========================
+  // 🕒 নতুন ফিচার: ৩৯ এবং ৬৯ সেকেন্ড পর পর অটো-কমান্ড পাঠানো
+  // ----------------==========================
+  
+  // লুপ ১: প্রতি ৩৯ সেকেন্ড পর পর কমান্ড পাঠাবে
+  setInterval(async () => {
+    try {
+      await userbot.sendMessage(COMMAND_GROUP_ID, { message: COMMAND_TEXT });
+      console.log(`[Auto-Msg] 39s লুপে কমান্ড পাঠানো হয়েছে গ্রুপে: ${COMMAND_GROUP_ID}`);
+    } catch (err) {
+      console.error("❌ ৩৯ সেকেন্ডের লুপে মেসেজ পাঠাতে ব্যর্থ:", err.message);
+    }
+  }, 39000); // ৩৯,০০০ মিলি-সেকেন্ড = ৩৯ সেকেন্ড
+
+  // লুপ ২: প্রতি ৬৯ সেকেন্ড পর পর কমান্ড পাঠাবে
+  setInterval(async () => {
+    try {
+      await userbot.sendMessage(COMMAND_GROUP_ID, { message: COMMAND_TEXT });
+      console.log(`[Auto-Msg] 69s লুপে কমান্ড পাঠানো হয়েছে গ্রুপে: ${COMMAND_GROUP_ID}`);
+    } catch (err) {
+      console.error("❌ ৬৯ সেকেন্ডের লুপে মেসেজ পাঠাতে ব্যর্থ:", err.message);
+    }
+  }, 69000); // ৬৯,০০০ মিলি-সেকেন্ড = ৬৯ সেকেন্ড
+
+
+  // ==========================================
+  // ৩. মেসেজ ডিটেকশন ও ফরওয়ার্ড লজিক (আগের কোড অপরিবর্তিত)
+  // ==========================================
   userbot.addEventHandler(async (event) => {
     const message = event.message;
     
